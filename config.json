@@ -1,0 +1,7 @@
+{
+  "config_version": 0,
+  "include_decks_regexp": ".*",
+  "include_note_types_regexp": ".*",
+  "hanzi_fields_regexp": "Expression",
+  "web_field": "HanziWeb"
+}
