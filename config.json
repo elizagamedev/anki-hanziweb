@@ -1,7 +1,8 @@
 {
   "config_version": 0,
-  "include_decks_regexp": ".*",
-  "include_note_types_regexp": ".*",
+  "search_query": "deck:*Japanese*",
   "hanzi_fields_regexp": "Expression",
-  "web_field": "HanziWeb"
+  "web_field": "HanziWeb",
+  "term_separator": "、",
+  "max_terms_per_hanzi": 5
 }
