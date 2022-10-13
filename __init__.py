@@ -55,29 +55,6 @@ def assert_is_not_none(optional: Optional[Any]) -> Any:
 mw = assert_is_not_none(mw_optional)
 
 
-class Config:
-    config_version: int
-    search_query: str
-    hanzi_fields_regexp: Optional[Pattern[Any]]
-    web_field: str
-    term_separator: str
-    max_terms_per_hanzi: int
-
-    def __init__(self, config: dict[str, Any]):
-        self.config_version = config.get("config_version") or 0
-        self.search_query = config.get("search_query") or ""
-        hanzi_fields_regexp = config.get("hanzi_fields_regexp")
-        self.hanzi_fields_regexp = (
-            re.compile(hanzi_fields_regexp) if hanzi_fields_regexp else None
-        )
-        self.web_field = config.get("web_field") or "HanziWeb"
-        self.term_separator = config.get("term_separator") or "、"
-        self.max_terms_per_hanzi = config.get("max_terms_per_hanzi") or 5
-
-
-CONFIG = Config(assert_is_not_none(mw).addonManager.getConfig(__name__))
-
-
 class ReportDialog(QDialog):  # type: ignore
     def __init__(self, text: str):
         super().__init__()
@@ -108,6 +85,26 @@ class ReportDialog(QDialog):  # type: ignore
         qconnect(apply_button.clicked, self.accept)
         qconnect(button_box.accepted, self.accept)
         qconnect(button_box.rejected, self.reject)
+
+
+class Config:
+    config_version: int
+    search_query: str
+    hanzi_fields_regexp: Optional[Pattern[Any]]
+    web_field: str
+    term_separator: str
+    max_terms_per_hanzi: int
+
+    def __init__(self, config: dict[str, Any]):
+        self.config_version = config.get("config_version") or 0
+        self.search_query = config.get("search_query") or ""
+        hanzi_fields_regexp = config.get("hanzi_fields_regexp")
+        self.hanzi_fields_regexp = (
+            re.compile(hanzi_fields_regexp) if hanzi_fields_regexp else None
+        )
+        self.web_field = config.get("web_field") or "HanziWeb"
+        self.term_separator = config.get("term_separator") or "、"
+        self.max_terms_per_hanzi = config.get("max_terms_per_hanzi") or 5
 
 
 class HanziField:
@@ -155,9 +152,9 @@ class HanziNote:
         )
 
 
-def get_hanzi_models() -> dict[NotetypeId, HanziModel]:
+def get_hanzi_models(config: Config) -> dict[NotetypeId, HanziModel]:
     models = mw.col.models
-    if not CONFIG.hanzi_fields_regexp:
+    if not config.hanzi_fields_regexp:
         return {}
     return {
         NotetypeId(note_type.id): HanziModel(note_type.name, fields)
@@ -169,7 +166,7 @@ def get_hanzi_models() -> dict[NotetypeId, HanziModel]:
                     for (name, (ord, _)) in models.field_map(
                         assert_is_not_none(models.get(NotetypeId(note_type.id)))
                     ).items()
-                    if CONFIG.hanzi_fields_regexp.fullmatch(name)
+                    if config.hanzi_fields_regexp.fullmatch(name)
                 ],
             )
             for note_type in models.all_names_and_ids()
@@ -178,9 +175,11 @@ def get_hanzi_models() -> dict[NotetypeId, HanziModel]:
     }
 
 
-def get_web_models(hanzi_model_ids: Iterable[NotetypeId]) -> dict[NotetypeId, int]:
+def get_web_models(
+    config: Config, hanzi_model_ids: Iterable[NotetypeId]
+) -> dict[NotetypeId, int]:
     models = mw.col.models
-    if not CONFIG.web_field:
+    if not config.web_field:
         return {}
     return {
         id: field[0]
@@ -188,7 +187,7 @@ def get_web_models(hanzi_model_ids: Iterable[NotetypeId]) -> dict[NotetypeId, in
             (
                 id,
                 models.field_map(assert_is_not_none(models.get(id))).get(
-                    CONFIG.web_field
+                    config.web_field
                 ),
             )
             for id in hanzi_model_ids
@@ -220,6 +219,7 @@ def get_hanzi_web(notes: Iterable[HanziNote]) -> dict[str, list[HanziNote]]:
 
 
 def get_notes_to_update(
+    config: Config,
     notes: Iterable[HanziNote],
     web_models: dict[NotetypeId, int],
     hanzi_web: dict[str, list[HanziNote]],
@@ -241,8 +241,8 @@ def get_notes_to_update(
             # TODO: Do this smarter
             reached_term_limit: Callable[[], bool] = (
                 (lambda: False)
-                if CONFIG.max_terms_per_hanzi == 0
-                else (lambda: len(terms) >= CONFIG.max_terms_per_hanzi)
+                if config.max_terms_per_hanzi == 0
+                else (lambda: len(terms) >= config.max_terms_per_hanzi)
             )
             for other_hanzi_note in note_list:
                 if other_hanzi_note == hanzi_note:
@@ -255,7 +255,7 @@ def get_notes_to_update(
                 if reached_term_limit():
                     break
             if terms:
-                terms_str = CONFIG.term_separator.join(terms)
+                terms_str = config.term_separator.join(terms)
                 entries.append(
                     (
                         f'<li><span class="hanziweb-hanzi">{hanzi}</span>'
@@ -273,11 +273,39 @@ def get_notes_to_update(
     return notes_to_update
 
 
+def generate_report(
+    config: Config,
+    search_string: str,
+    hanzi_models: dict[NotetypeId, HanziModel],
+    notes_to_update: list[tuple[HanziNote, str]],
+) -> str:
+    report = [
+        (
+            "Hanzi Web will update the following notes. Please ensure this "
+            "looks correct before continuing.\n"
+        ),
+        f"Search query:\n  {search_string}\n\nNote types:\n",
+    ]
+    for model in hanzi_models.values():
+        fields = ", ".join([field.name for field in model.fields])
+        report.append(f"  {model.name} [{fields}]\n")
+    if notes_to_update:
+        report.append(
+            f"\nNotes to update [{config.web_field}] ({len(notes_to_update)}):\n"
+        )
+        for (note, _) in notes_to_update:
+            report.append(f"  {note.note.id} {note.note.values()[0]}\n")
+    else:
+        report.append("\nAll notes already up to date.\n")
+    return "".join(report)
+
+
 def update() -> None:
-    hanzi_models = get_hanzi_models()
+    config = Config(assert_is_not_none(mw).addonManager.getConfig(__name__))
+    hanzi_models = get_hanzi_models(config)
 
     search_string = mw.col.build_search_string(
-        CONFIG.search_query,
+        config.search_query,
         mw.col.group_searches(
             *[SearchNode(parsable_text=f"mid:{id}") for id in hanzi_models.keys()],
             joiner="OR",
@@ -291,27 +319,13 @@ def update() -> None:
         ]
     }
 
-    web_models = get_web_models(hanzi_models.keys())
+    web_models = get_web_models(config, hanzi_models.keys())
     hanzi_web = get_hanzi_web(notes.values())
-    notes_to_update = get_notes_to_update(notes.values(), web_models, hanzi_web)
+    notes_to_update = get_notes_to_update(config, notes.values(), web_models, hanzi_web)
 
     # Summarize the operation to the user.
-    summary = [
-        (
-            "Hanzi Web will update the following notes. Please ensure this "
-            "looks correct before continuing.\n"
-        ),
-        f"Search query:\n  {search_string}\n\nNote types:",
-    ]
-    web_field = CONFIG.web_field or "<not set>"
-    for model in hanzi_models.values():
-        fields = ", ".join([field.name for field in model.fields])
-        summary.append(f"  {model.name} [{fields}]")
-    summary.append(f"\nNotes to update [{web_field}] ({len(notes_to_update)}):")
-    for (note, _) in notes_to_update:
-        summary.append(f"  {note.note.id} {note.note.values()[0]}")
-
-    if ReportDialog("\n".join(summary)).exec() == QDialog.DialogCode.Rejected:
+    report = generate_report(config, search_string, hanzi_models, notes_to_update)
+    if ReportDialog(report).exec() == QDialog.DialogCode.Rejected:
         return
 
     for (hanzi_note, entries) in notes_to_update:
