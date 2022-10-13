@@ -4,6 +4,7 @@ from re import Pattern
 from typing import Any, Callable, Iterable, Optional, Sequence
 
 from anki.collection import SearchNode
+from anki.config import Config as AnkiConfig
 from anki.models import NotetypeId
 from anki.notes import Note
 from aqt import mw as mw_optional
@@ -49,6 +50,14 @@ def assert_is_not_none(optional: Optional[Any]) -> Any:
 
 
 mw = assert_is_not_none(mw_optional)
+
+
+def normalize_unicode(string: str) -> str:
+    return (
+        unicodedata.normalize("NFC", string)
+        if mw.col.get_config_bool(AnkiConfig.Bool.NORMALIZE_NOTE_TEXT)
+        else string
+    )
 
 
 class ReportDialog(QDialog):  # type: ignore
@@ -135,8 +144,7 @@ class HanziNote:
         self.note = note
 
         self.field_values = [
-            unicodedata.normalize("NFKC", note[field])
-            for field in hanzi_models[note.mid].fields
+            normalize_unicode(note[field]) for field in hanzi_models[note.mid].fields
         ]
 
         self.hanzi = []
@@ -253,7 +261,7 @@ def get_notes_to_update(
                         f'<span class="hanziweb-terms">{terms_str}</span></li>'
                     )
                 )
-        entries_str = f"<ol class='hanziweb'>{''.join(entries)}</ol>" if entries else ""
+        entries_str = f'<ol class="hanziweb">{"".join(entries)}</ol>' if entries else ""
 
         # Add to the list if the fields differ.
         extant_entries = hanzi_note.note[config.web_field]
