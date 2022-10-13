@@ -13,7 +13,8 @@ the releases tab, then install in Anki via `Tools -> Add-ons -> Install from
 file…`
 
 ## Configuration
-See [config.md](config.md).
+You can configure Hanzi Web through Anki after installing via `Tools -> Add-ons
+-> Hanzi Web -> Config`. See [config.md](config.md).
 
 You may want to also configure the CSS of your notes, as Hanzi Web does no
 styling by default. It instead exposes three CSS classes:
