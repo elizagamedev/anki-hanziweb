@@ -1,8 +1,9 @@
 ZIP		?= zip
 
 NAME		:= hanziweb
-ANKIADDON	:= $(NAME).ankiaddon
-DEPS		:= __init__.py config.json config.md
+VERSION		:= 0.1.0
+ANKIADDON	:= $(NAME)-$(VERSION).ankiaddon
+DEPS		:= __init__.py config.json config.md manifest.json
 
 all: 	$(ANKIADDON)
 clean:	; rm -rf $(ANKIADDON) __pycache__

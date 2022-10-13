@@ -1,7 +1,6 @@
 import re
 import unicodedata
 from re import Pattern
-from sys import platform
 from typing import Any, Callable, Iterable, Optional, Sequence
 
 from anki.collection import SearchNode
@@ -34,13 +33,9 @@ GPL = (
     "with this program. If not, see <https://www.gnu.org/licenses/>."
 )
 
-CONTROL_HINT = "Cmd" if platform == "darwin" else "Ctrl"
-
 ABOUT_TEXT = (
     f"Hanzi Web {VERSION} by Eliza\n\n"
-    'To configure Hanzi Web, go to "Tools -> Addons" '
-    f'({CONTROL_HINT}+Shift+A), select "Hanzi Web", and click '
-    '"Config".\n\n' + GPL
+    "For detailed usage instructions, see the addon page.\n\n" + GPL
 )
 
 
