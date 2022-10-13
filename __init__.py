@@ -195,10 +195,13 @@ def get_web_models(
     }
 
 
-def get_hanzi_web(notes: Iterable[HanziNote]) -> dict[str, list[HanziNote]]:
-    # Comb through notes for each hanzi and construct the web.
+def get_hanzi_web(notes: Iterable[HanziNote]) -> tuple[dict[str, list[HanziNote]], int]:
+    # Comb through notes for each hanzi and construct the web. Also, count the number of
+    # unique hanzi total.
+    total_hanzi: set[str] = set()
     hanzi_web_sets: dict[str, set[HanziNote]] = {}
     for hanzi_note in notes:
+        total_hanzi.update(hanzi_note.hanzi)
         # Skip this one if we've never seen it.
         if hanzi_note.latest_review == 0:
             continue
@@ -208,13 +211,14 @@ def get_hanzi_web(notes: Iterable[HanziNote]) -> dict[str, list[HanziNote]]:
                 note_set.add(hanzi_note)
             else:
                 hanzi_web_sets[hanzi] = {hanzi_note}
-    return {
+    hanzi_web = {
         hanzi: sorted(
             note_set,
             key=lambda x: -x.latest_review,
         )
         for (hanzi, note_set) in hanzi_web_sets.items()
     }
+    return (hanzi_web, len(total_hanzi))
 
 
 def get_notes_to_update(
@@ -276,13 +280,15 @@ def generate_report(
     search_string: str,
     hanzi_models: dict[NotetypeId, HanziModel],
     notes_to_update: list[tuple[HanziNote, str]],
+    total_hanzi: int,
+    total_known_hanzi: int,
 ) -> str:
     report = [
-        (
-            "Hanzi Web will update the following notes. Please ensure this "
-            "looks correct before continuing.\n"
-        ),
-        f"Search query:\n  {search_string}\n\nNote types:\n",
+        "Hanzi Web will update the following notes. Please ensure this ",
+        "looks correct before continuing.\n\n",
+        f"Search query:\n  {search_string}\n\n",
+        f"Unique hanzi: {total_known_hanzi} seen, {total_hanzi} total\n\n",
+        "Note types:\n",
     ]
     for model in hanzi_models.values():
         fields = ", ".join(model.fields)
@@ -318,11 +324,18 @@ def update() -> None:
     }
 
     web_models = get_web_models(config, hanzi_models.keys())
-    hanzi_web = get_hanzi_web(notes.values())
+    hanzi_web, total_hanzi = get_hanzi_web(notes.values())
     notes_to_update = get_notes_to_update(config, notes.values(), web_models, hanzi_web)
 
     # Summarize the operation to the user.
-    report = generate_report(config, search_string, hanzi_models, notes_to_update)
+    report = generate_report(
+        config,
+        search_string,
+        hanzi_models,
+        notes_to_update,
+        total_hanzi,
+        len(hanzi_web),
+    )
     if ReportDialog(report).exec() == QDialog.DialogCode.Rejected:
         return
 
