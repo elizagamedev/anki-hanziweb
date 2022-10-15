@@ -18,7 +18,7 @@ from aqt.qt import (  # type: ignore
 )
 from aqt.utils import qconnect, showInfo
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 CONFIG_VERSION = 0
 
 GPL = (

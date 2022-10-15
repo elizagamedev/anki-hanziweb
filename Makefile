@@ -1,7 +1,7 @@
 ZIP		?= zip
 
 NAME		:= hanziweb
-VERSION		:= 0.1.0
+VERSION		:= 0.1.1
 ANKIADDON	:= $(NAME)-$(VERSION).ankiaddon
 DEPS		:= __init__.py \
 		   config.json \

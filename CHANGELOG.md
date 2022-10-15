@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.1.1] - 2022-10-14
 ### Added
 - The numbers of known/total hanzi are shown in the report.
 
@@ -15,5 +17,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release.
 
-[Unreleased]: https://github.com/elizagamedev/anki-hanziweb/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/elizagamedev/anki-hanziweb/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/elizagamedev/anki-hanziweb/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/elizagamedev/anki-hanziweb/releases/tag/v0.1.0
