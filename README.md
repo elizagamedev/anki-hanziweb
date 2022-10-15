@@ -8,9 +8,9 @@ hanzi if you are reminded of other words it comprises that you’ve already
 studied.
 
 ## Installation
-This addon is not available on AnkiWeb as of right now; please download it from
-the releases tab, then install in Anki via `Tools -> Add-ons -> Install from
-file…`
+You may install this from its [Anki Web page](https://ankiweb.net/shared/info/125468335). You may alternatively download
+it from the GitHub releases page, then install in Anki via `Tools -> Add-ons ->
+Install from file…`
 
 ## Configuration
 You can configure Hanzi Web through Anki after installing via `Tools -> Add-ons

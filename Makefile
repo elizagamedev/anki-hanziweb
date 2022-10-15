@@ -12,7 +12,7 @@ DEPS		:= __init__.py \
 		   LICENSE
 
 all: 	$(ANKIADDON)
-clean:	; rm -rf $(ANKIADDON) __pycache__
+clean:	; rm -rf $(ANKIADDON) __pycache__ README.html
 .PHONY: all clean
 
 $(ANKIADDON): $(DEPS)
