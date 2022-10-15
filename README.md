@@ -47,3 +47,17 @@ ol.hanziweb {
   font-family: serif;
 }
 ```
+
+## Usage
+Ensure that the note types of the notes you want to add web entries to have a
+field called “HanziWeb” (without quotes). Also ensure that you’ve configured
+Hanzi Web as described in the [Configuration](#configuration) section, so that
+you are including the correct cards and using the hanzi from the correct fields.
+Make sure that you add `{{HanziWeb}}` to your cards’ HTML templates as well.
+
+Now you can add web entries to your notes by accessing `Tools -> Hanzi Web ->
+Update notes…` or by pressing `Control-W` (`Command-W` on macOS). A dialog with
+a report of the pending changes will be shown; you’ll want to consider this
+carefully if it’s your first time running Hanzi Web or if you’ve recently
+changed your configuration to make sure that you haven’t made any mistakes.
+Click “Apply” and your notes’ “HanziWeb” fields will be filled!

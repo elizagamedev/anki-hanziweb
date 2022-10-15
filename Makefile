@@ -3,7 +3,13 @@ ZIP		?= zip
 NAME		:= hanziweb
 VERSION		:= 0.1.0
 ANKIADDON	:= $(NAME)-$(VERSION).ankiaddon
-DEPS		:= __init__.py config.json config.md manifest.json
+DEPS		:= __init__.py \
+		   config.json \
+		   config.md \
+		   manifest.json \
+		   README.md \
+		   CHANGELOG.md \
+		   LICENSE
 
 all: 	$(ANKIADDON)
 clean:	; rm -rf $(ANKIADDON) __pycache__
