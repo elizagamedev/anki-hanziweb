@@ -19,7 +19,7 @@ from aqt.qt import (  # type: ignore
 )
 from aqt.utils import qconnect, showInfo, tooltip
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 CONFIG_VERSION = 0
 
 GPL = (
