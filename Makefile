@@ -9,12 +9,13 @@ DEPS		:= __init__.py \
 		   manifest.json \
 		   README.md \
 		   CHANGELOG.md \
-		   LICENSE
+		   LICENSE \
+		   thirdparty
 
 all: 	$(ANKIADDON)
-clean:	; rm -rf $(ANKIADDON) __pycache__ README.html
+clean:	; rm -rf *.ankiaddon __pycache__ README.html
 .PHONY: all clean
 
 $(ANKIADDON): $(DEPS)
 	rm -f $@
-	$(ZIP) -9 $@ $^
+	$(ZIP) -r9 $@ $^ -x '*/.git'
