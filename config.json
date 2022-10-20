@@ -1,8 +1,10 @@
 {
   "config_version": 0,
   "hanzi_fields_regexp": "Expression",
+  "kyujitai_fields_regexp": "Kyujitai",
   "max_terms_per_hanzi": 5,
   "search_query": "",
+  "shinjitai_fields_regexp": "Expression",
   "term_separator": "、",
   "web_field": "HanziWeb"
 }

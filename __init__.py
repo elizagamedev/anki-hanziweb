@@ -5,6 +5,8 @@ thirdparty_dir = pathlib.Path(__file__).parent.absolute() / "thirdparty"
 for addon in ["kyujipy", "pycson", "speg"]:
     sys.path.append(str(thirdparty_dir / addon))
 
-from .main import main  # noqa
+from .hanziweb import init as hanziweb_init  # noqa
+from .jitai import init as jitai_init  # noqa
 
-main()
+hanziweb_init()
+jitai_init()
