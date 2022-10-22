@@ -6,12 +6,7 @@ from typing import Any, Optional
 from anki.config import Config as AnkiConfig
 from aqt import mw as mw_optional
 from aqt.main import AnkiQt
-from aqt.qt import (  # type: ignore
-    QDialog,
-    QDialogButtonBox,
-    QPlainTextEdit,
-    QVBoxLayout,
-)
+from aqt.qt import QDialog, QDialogButtonBox, QPlainTextEdit, QVBoxLayout  # type: ignore # noqa
 from aqt.utils import qconnect
 
 

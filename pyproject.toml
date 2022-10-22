@@ -2,7 +2,3 @@
 enabled = true
 live_mode = true
 strict = true
-
-[tool.mypy]
-mypy_path = "thirdparty/kyujipy:thirdparty/pycson:thirdparty/speg"
-exclude = "/tests?/|/setup"

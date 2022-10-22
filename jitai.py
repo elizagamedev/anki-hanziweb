@@ -1,20 +1,15 @@
+from enum import Enum
 from re import Pattern
 from typing import Any, Optional
 
-from kyujipy import KyujitaiConverter
 from anki.models import NotetypeId, NotetypeNameId
 from anki.notes import NoteId
 from aqt import gui_hooks
 from aqt.browser.browser import Browser
 from aqt.utils import qconnect, showInfo, tooltip
-from enum import Enum
 
-from .common import (
-    assert_is_not_none,
-    mw,
-    Config,
-    show_report,
-)
+from .common import Config, assert_is_not_none, mw, show_report
+from .kyujipy import KyujitaiConverter
 
 
 class Direction(Enum):

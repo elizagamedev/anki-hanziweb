@@ -10,11 +10,16 @@ DEPS		:= __init__.py \
 		   README.md \
 		   CHANGELOG.md \
 		   LICENSE \
-		   thirdparty
+		   kyujipy
 
 all: 	$(ANKIADDON)
 clean:	; rm -rf *.ankiaddon __pycache__ README.html
-.PHONY: all clean
+.PHONY: all clean format
+
+format:
+	isort *.py
+	black *.py
+.PHONY: format
 
 $(ANKIADDON): $(DEPS)
 	rm -f $@

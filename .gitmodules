@@ -1,9 +1,0 @@
-[submodule "thirdparty/kyujipy"]
-	path = thirdparty/kyujipy
-	url = https://github.com/DrTurnon/kyujipy.git
-[submodule "thirdparty/speg"]
-	path = thirdparty/speg
-	url = https://github.com/avakar/speg.git
-[submodule "thirdparty/pycson"]
-	path = thirdparty/pycson
-	url = https://github.com/avakar/pycson.git
