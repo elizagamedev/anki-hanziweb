@@ -3,3 +3,5 @@ __pycache__
 /*.ankiaddon
 /README.html
 /meta.json
+/kanjidic2.xml
+/kanji-onyomi.json

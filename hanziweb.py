@@ -1,4 +1,6 @@
+import json
 from dataclasses import dataclass
+from pathlib import PurePath
 from re import Pattern
 from typing import Any, Callable, Iterable, Optional, Sequence
 
@@ -71,6 +73,7 @@ class HanziNote:
     hanzi: Sequence[str]
     phonetic_series: Sequence[Optional[str]]
     latest_review: int
+    chinese_reading: bool
 
 
 def create_hanzi_note(
@@ -92,7 +95,9 @@ def create_hanzi_note(
     for value in terms:
         hanzi.extend(HANZI_REGEXP.findall(value))
 
-    if id in chinese_reading_note_ids:
+    chinese_reading = id in chinese_reading_note_ids
+
+    if chinese_reading:
         # This is a Chinese reading of a note, so the sound series is relevant.
         phonetic_series = [
             COMPONENT_BY_PHONETIC_SERIES.get(
@@ -110,7 +115,15 @@ def create_hanzi_note(
     )
 
     return HanziNote(
-        id, model, fields, terms, web_field, hanzi, phonetic_series, latest_review
+        id,
+        model,
+        fields,
+        terms,
+        web_field,
+        hanzi,
+        phonetic_series,
+        latest_review,
+        chinese_reading,
     )
 
 
@@ -201,10 +214,11 @@ def get_notes_to_update(
     notes: Iterable[HanziNote],
     hanzi_web: HanziWeb,
     phonetic_series_web: HanziWeb,
+    onyomi: dict[str, list[str]],
 ) -> list[tuple[HanziNote, str]]:
     notes_to_maybe_update = [note for note in notes if note.model.has_web_field]
 
-    def build_entry(
+    def build_web_entry(
         hanzi: str, phonetic_component: Optional[str], hanzi_note: HanziNote
     ) -> str:
         hanzi_web_entry = hanzi_web.entry(
@@ -224,6 +238,24 @@ def get_notes_to_update(
         if hanzi_web_entry and phonetic_component_entry:
             return f"{hanzi_web_entry}<br>{phonetic_component_entry}"
         return f"{hanzi_web_entry}{phonetic_component_entry}"
+
+    def build_onyomi_entry(hanzi: str, chinese_reading: bool) -> str:
+        if not chinese_reading:
+            return ""
+        terms = onyomi.get(hanzi)
+        if not terms:
+            return ""
+        terms_str = config.term_separator.join(terms)
+        return f'<span class="hanziweb-onyomi">{terms_str}</span>'
+
+    def build_entry(
+        hanzi: str, phonetic_component: Optional[str], hanzi_note: HanziNote
+    ) -> str:
+        web_entry = build_web_entry(hanzi, phonetic_component, hanzi_note)
+        onyomi_entry = build_onyomi_entry(hanzi, hanzi_note.chinese_reading)
+        if web_entry and onyomi_entry:
+            return f"{web_entry}<br>{onyomi_entry}"
+        return f"{web_entry}{onyomi_entry}"
 
     # Actually build the updates and see if they differ from the extant note,
     # collecting them in a new set.
@@ -307,6 +339,11 @@ def update() -> None:
     converter = BasicConverter()  # type: ignore
     hanzi_models = get_hanzi_models(config)
 
+    with open(
+        PurePath(__file__).parent / "kanji-onyomi.json", "r", encoding="utf-8"
+    ) as onyomi_file:
+        onyomi = json.load(onyomi_file)
+
     search_string = mw.col.build_search_string(
         config.search_query,
         mw.col.group_searches(
@@ -334,7 +371,7 @@ def update() -> None:
         notes.values(), lambda x: [y for y in x.phonetic_series if y is not None]
     )
     notes_to_update = get_notes_to_update(
-        config, notes.values(), hanzi_web, phonetic_series_web
+        config, notes.values(), hanzi_web, phonetic_series_web, onyomi
     )
 
     # Summarize the operation to the user.

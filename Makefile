@@ -1,4 +1,5 @@
 ZIP		?= zip
+KANJIDIC	?= kanjidic2.xml
 
 NAME		:= hanziweb
 VERSION		:= 0.1.2
@@ -10,16 +11,20 @@ DEPS		:= __init__.py \
 		   README.md \
 		   CHANGELOG.md \
 		   LICENSE \
-		   kyujipy
+		   kyujipy \
+		   kanji-onyomi.json
 
 all: 	$(ANKIADDON)
-clean:	; rm -rf *.ankiaddon __pycache__ README.html
+clean:	; rm -rf *.ankiaddon __pycache__ README.html kanji-onyomi.json
 .PHONY: all clean format
 
 format:
 	isort *.py
 	black *.py
 .PHONY: format
+
+kanji-onyomi.json: tools/make-kanji-onyomi.sh $(KANJIDIC)
+	tools/make-kanji-onyomi.sh $(KANJIDIC) kanji-onyomi.json
 
 $(ANKIADDON): $(DEPS)
 	rm -f $@
