@@ -21,7 +21,6 @@ from .common import (
     show_report,
 )
 from .kyujipy import BasicConverter
-from .phonetics import COMPONENT_BY_PHONETIC_SERIES
 
 GPL = (
     "This program is free software: you can redistribute it and/or modify it "
@@ -83,6 +82,7 @@ def create_hanzi_note(
     hanzi_models: dict[NotetypeId, HanziModel],
     chinese_reading_note_ids: set[NoteId],
     converter: BasicConverter,
+    component_by_phonetic_series: dict[str, str],
 ) -> HanziNote:
     note = mw.col.get_note(id)
 
@@ -101,7 +101,7 @@ def create_hanzi_note(
     if chinese_reading:
         # This is a Chinese reading of a note, so the sound series is relevant.
         phonetic_series = [
-            COMPONENT_BY_PHONETIC_SERIES.get(
+            component_by_phonetic_series.get(
                 converter.shinjitai_to_kyujitai(h)  # type: ignore
             )
             for h in hanzi
@@ -346,6 +346,8 @@ def apply_changes(
 
 
 def update() -> None:
+    from .phonetics import COMPONENT_BY_PHONETIC_SERIES
+
     config = Config(assert_is_not_none(mw.addonManager.getConfig(__name__)))
     converter = BasicConverter()  # type: ignore
     hanzi_models = get_hanzi_models(config)
@@ -372,7 +374,12 @@ def update() -> None:
 
     notes = {
         id: create_hanzi_note(
-            config, id, hanzi_models, chinese_reading_note_ids, converter
+            config,
+            id,
+            hanzi_models,
+            chinese_reading_note_ids,
+            converter,
+            COMPONENT_BY_PHONETIC_SERIES,
         )
         for id in mw.col.find_notes(search_string)
     }
