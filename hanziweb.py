@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from re import Pattern
 from typing import Any, Callable, Iterable, Optional, Sequence
 
@@ -16,6 +17,8 @@ from .common import (
     normalize_unicode,
     show_report,
 )
+from .kyujipy import BasicConverter
+from .phonetics import COMPONENT_BY_PHONETIC_SERIES
 
 GPL = (
     "This program is free software: you can redistribute it and/or modify it "
@@ -36,22 +39,15 @@ ABOUT_TEXT = (
 )
 
 
+@dataclass(eq=False, frozen=True)
 class HanziModel:
     id: NotetypeId
     name: str
     fields: Sequence[str]
     has_web_field: bool
 
-    def __init__(
-        self, id: NotetypeId, name: str, fields: Sequence[str], has_web_field: bool
-    ):
-        self.id = id
-        self.name = name
-        self.fields = fields
-        self.has_web_field = has_web_field
 
-
-def create_hanzi_model_from_notetype_name_id(
+def create_hanzi_model(
     hanzi_fields_regexp: Pattern[Any],
     web_field: str,
     note_type: NotetypeNameId,
@@ -65,43 +61,119 @@ def create_hanzi_model_from_notetype_name_id(
     return HanziModel(id, note_type.name, fields, has_web_field)
 
 
+@dataclass(eq=False, frozen=True)
 class HanziNote:
     id: NoteId
     model: HanziModel
     fields: list[str]
+    terms: Sequence[str]
     web_field: Optional[str]
-    normalized_hanzi_fields: Sequence[str]
     hanzi: Sequence[str]
+    phonetic_series: Sequence[Optional[str]]
     latest_review: int
 
-    def __init__(
+
+def create_hanzi_note(
+    config: Config,
+    id: NoteId,
+    hanzi_models: dict[NotetypeId, HanziModel],
+    converter: BasicConverter,
+) -> HanziNote:
+    note = mw.col.get_note(id)
+
+    model = hanzi_models[note.mid]
+    fields = note.fields
+    web_field = note[config.web_field] if model.has_web_field else None
+
+    terms = [normalize_unicode(note[field]) for field in hanzi_models[note.mid].fields]
+
+    hanzi = []
+    for value in terms:
+        hanzi.extend(HANZI_REGEXP.findall(value))
+
+    phonetic_series = [
+        COMPONENT_BY_PHONETIC_SERIES.get(
+            converter.shinjitai_to_kyujitai(h)  # type: ignore
+        )
+        for h in hanzi
+    ]
+
+    latest_review = max(
+        [mw.col.card_stats_data(card_id).latest_review for card_id in note.card_ids()]
+    )
+
+    return HanziNote(
+        id, model, fields, terms, web_field, hanzi, phonetic_series, latest_review
+    )
+
+
+@dataclass(eq=False, frozen=True)
+class HanziWeb:
+    web: dict[str, list[HanziNote]]
+    total_hanzi: int
+
+    def entry(
         self,
         config: Config,
-        id: NoteId,
-        hanzi_models: dict[NotetypeId, HanziModel],
-    ):
-        self.id = id
-
-        note = mw.col.get_note(id)
-
-        self.model = hanzi_models[note.mid]
-        self.fields = note.fields
-        self.web_field = note[config.web_field] if self.model.has_web_field else None
-
-        self.normalized_hanzi_fields = [
-            normalize_unicode(note[field]) for field in hanzi_models[note.mid].fields
-        ]
-
-        self.hanzi = []
-        for value in self.normalized_hanzi_fields:
-            self.hanzi.extend(HANZI_REGEXP.findall(value))
-
-        self.latest_review = max(
-            [
-                mw.col.card_stats_data(card_id).latest_review
-                for card_id in note.card_ids()
-            ]
+        hanzi: str,
+        hanzi_class: str,
+        terms_class: str,
+        hanzi_note: HanziNote,
+    ) -> str:
+        note_list = self.web.get(hanzi)
+        if not note_list:
+            return ""
+        terms: list[str] = []
+        # TODO: Do this smarter
+        reached_term_limit: Callable[[], bool] = (
+            (lambda: False)
+            if config.max_terms_per_hanzi == 0
+            else (lambda: len(terms) >= config.max_terms_per_hanzi)
         )
+        for other_hanzi_note in note_list:
+            if other_hanzi_note == hanzi_note:
+                # Don't inculde ourselves
+                continue
+            for term in other_hanzi_note.terms:
+                if reached_term_limit():
+                    break
+                terms.append(term)
+            if reached_term_limit():
+                break
+        if terms:
+            terms_str = config.term_separator.join(terms)
+            return (
+                f'<span class="{hanzi_class}">{hanzi}</span>'
+                f'<span class="{terms_class}">{terms_str}</span>'
+            )
+        return ""
+
+
+def create_hanzi_web(
+    notes: Iterable[HanziNote], field: Callable[[HanziNote], Sequence[str]]
+) -> HanziWeb:
+    total_hanzi: set[str] = set()
+    hanzi_sets: dict[str, set[HanziNote]] = {}
+    for hanzi_note in notes:
+        all_hanzi = field(hanzi_note)
+        total_hanzi.update(all_hanzi)
+        # Skip this one if we've never seen it.
+        if hanzi_note.latest_review == 0:
+            continue
+        for hanzi in all_hanzi:
+            note_set = hanzi_sets.get(hanzi)
+            if note_set:
+                note_set.add(hanzi_note)
+            else:
+                hanzi_sets[hanzi] = {hanzi_note}
+    web = {
+        hanzi: sorted(
+            note_set,
+            key=lambda x: -x.latest_review,
+        )
+        for (hanzi, note_set) in hanzi_sets.items()
+    }
+    return HanziWeb(web, len(total_hanzi))
 
 
 def get_hanzi_models(config: Config) -> dict[NotetypeId, HanziModel]:
@@ -110,87 +182,56 @@ def get_hanzi_models(config: Config) -> dict[NotetypeId, HanziModel]:
     return {
         model.id: model
         for model in [
-            create_hanzi_model_from_notetype_name_id(
-                config.hanzi_fields_regexp, config.web_field, note_type
-            )
+            create_hanzi_model(config.hanzi_fields_regexp, config.web_field, note_type)
             for note_type in mw.col.models.all_names_and_ids()
         ]
         if model
     }
 
 
-def get_hanzi_web(notes: Iterable[HanziNote]) -> tuple[dict[str, list[HanziNote]], int]:
-    # Comb through notes for each hanzi and construct the web. Also, count the number of
-    # unique hanzi total.
-    total_hanzi: set[str] = set()
-    hanzi_web_sets: dict[str, set[HanziNote]] = {}
-    for hanzi_note in notes:
-        total_hanzi.update(hanzi_note.hanzi)
-        # Skip this one if we've never seen it.
-        if hanzi_note.latest_review == 0:
-            continue
-        for hanzi in hanzi_note.hanzi:
-            note_set = hanzi_web_sets.get(hanzi)
-            if note_set:
-                note_set.add(hanzi_note)
-            else:
-                hanzi_web_sets[hanzi] = {hanzi_note}
-    hanzi_web = {
-        hanzi: sorted(
-            note_set,
-            key=lambda x: -x.latest_review,
-        )
-        for (hanzi, note_set) in hanzi_web_sets.items()
-    }
-    return (hanzi_web, len(total_hanzi))
-
-
 def get_notes_to_update(
     config: Config,
     notes: Iterable[HanziNote],
-    hanzi_web: dict[str, list[HanziNote]],
+    hanzi_web: HanziWeb,
+    phonetic_series_web: HanziWeb,
 ) -> list[tuple[HanziNote, str]]:
     notes_to_maybe_update = [note for note in notes if note.model.has_web_field]
+
+    def build_entry(
+        hanzi: str, phonetic_component: Optional[str], hanzi_note: HanziNote
+    ) -> str:
+        hanzi_web_entry = hanzi_web.entry(
+            config, hanzi, "hanziweb-hanzi", "hanziweb-terms", hanzi_note
+        )
+        phonetic_component_entry = (
+            phonetic_series_web.entry(
+                config,
+                phonetic_component,
+                "hanziweb-phonetic-component",
+                "hanziweb-phonetic-terms",
+                hanzi_note,
+            )
+            if phonetic_component is not None
+            else ""
+        )
+        if hanzi_web_entry and phonetic_component_entry:
+            return f"{hanzi_web_entry}<br>{phonetic_component_entry}"
+        return f"{hanzi_web_entry}{phonetic_component_entry}"
 
     # Actually build the updates and see if they differ from the extant note,
     # collecting them in a new set.
     notes_to_update = []
     for hanzi_note in notes_to_maybe_update:
-        entries = []
-        for hanzi in hanzi_note.hanzi:
-            note_list = hanzi_web.get(hanzi)
-            if not note_list:
-                # No other notes for this hanzi. This shouldn't really be
-                # possible since we ourselves are a note.
-                continue
-            terms: list[str] = []
-            # TODO: Do this smarter
-            reached_term_limit: Callable[[], bool] = (
-                (lambda: False)
-                if config.max_terms_per_hanzi == 0
-                else (lambda: len(terms) >= config.max_terms_per_hanzi)
-            )
-            for other_hanzi_note in note_list:
-                if other_hanzi_note == hanzi_note:
-                    # Don't inculde ourselves
-                    continue
-                for term in other_hanzi_note.normalized_hanzi_fields:
-                    if reached_term_limit():
-                        break
-                    terms.append(term)
-                if reached_term_limit():
-                    break
-            if terms:
-                terms_str = config.term_separator.join(terms)
-                entries.append(
-                    (
-                        f'<li><span class="hanziweb-hanzi">{hanzi}</span>'
-                        f'<span class="hanziweb-terms">{terms_str}</span></li>'
-                    )
-                )
-        entries_str = f'<ol class="hanziweb">{"".join(entries)}</ol>' if entries else ""
+        entries: list[str] = []
+        for (hanzi, phonetic_component) in zip(
+            hanzi_note.hanzi, hanzi_note.phonetic_series
+        ):
+            entry = build_entry(hanzi, phonetic_component, hanzi_note)
+            if entry:
+                entries.append(f"<li>{entry}</li>")
 
         # Add to the list if the fields differ.
+        entries_str = f'<ol class="hanziweb">{"".join(entries)}</ol>' if entries else ""
         if entries_str != hanzi_note.web_field:
             notes_to_update.append((hanzi_note, entries_str))
 
@@ -202,14 +243,18 @@ def generate_report(
     search_string: str,
     hanzi_models: dict[NotetypeId, HanziModel],
     notes_to_update: list[tuple[HanziNote, str]],
-    total_hanzi: int,
-    total_known_hanzi: int,
+    hanzi_web: HanziWeb,
+    phonetic_series_web: HanziWeb,
 ) -> str:
+    def unique_hanzi(web: HanziWeb) -> str:
+        return f"{len(web.web)} seen, {web.total_hanzi} total"
+
     report = [
         "Hanzi Web will update the following notes. Please ensure this ",
         "looks correct before continuing.\n\n",
         f"Search query:\n  {search_string}\n\n",
-        f"Unique hanzi: {total_known_hanzi} seen, {total_hanzi} total\n\n",
+        f"Unique hanzi: {unique_hanzi(hanzi_web)}\n",
+        f"Unique phonetic series: {unique_hanzi(phonetic_series_web)}\n\n",
         "Note types:\n",
     ]
     for model in hanzi_models.values():
@@ -226,7 +271,9 @@ def generate_report(
     return "".join(report)
 
 
-def apply_changes(config: Config, notes_to_update: list[tuple[HanziNote, str]]) -> None:
+def apply_changes(
+    config: Config, notes_to_update: Sequence[tuple[HanziNote, str]]
+) -> None:
     if not notes_to_update:
         tooltip("Nothing done.", parent=mw)
         return
@@ -248,6 +295,7 @@ def apply_changes(config: Config, notes_to_update: list[tuple[HanziNote, str]]) 
 
 def update() -> None:
     config = Config(assert_is_not_none(mw.addonManager.getConfig(__name__)))
+    converter = BasicConverter()  # type: ignore
     hanzi_models = get_hanzi_models(config)
 
     search_string = mw.col.build_search_string(
@@ -259,12 +307,17 @@ def update() -> None:
     )
 
     notes = {
-        id: HanziNote(config, id, hanzi_models)
+        id: create_hanzi_note(config, id, hanzi_models, converter)
         for id in mw.col.find_notes(search_string)
     }
 
-    hanzi_web, total_hanzi = get_hanzi_web(notes.values())
-    notes_to_update = get_notes_to_update(config, notes.values(), hanzi_web)
+    hanzi_web = create_hanzi_web(notes.values(), lambda x: x.hanzi)
+    phonetic_series_web = create_hanzi_web(
+        notes.values(), lambda x: [y for y in x.phonetic_series if y is not None]
+    )
+    notes_to_update = get_notes_to_update(
+        config, notes.values(), hanzi_web, phonetic_series_web
+    )
 
     # Summarize the operation to the user.
     report = generate_report(
@@ -272,8 +325,8 @@ def update() -> None:
         search_string,
         hanzi_models,
         notes_to_update,
-        total_hanzi,
-        len(hanzi_web),
+        hanzi_web,
+        phonetic_series_web,
     )
     if not show_report(report):
         return

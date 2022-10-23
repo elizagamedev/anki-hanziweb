@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum
 from re import Pattern
 from typing import Any, Optional
@@ -6,7 +7,7 @@ from anki.models import NotetypeId, NotetypeNameId
 from anki.notes import NoteId
 from aqt import gui_hooks
 from aqt.browser.browser import Browser
-from aqt.utils import qconnect, showInfo, tooltip
+from aqt.utils import qconnect, tooltip
 
 from .common import Config, assert_is_not_none, mw, show_report
 from .kyujipy import KyujitaiConverter
@@ -24,17 +25,12 @@ class Direction(Enum):
         raise Exception("Invalid conversion direction")
 
 
+@dataclass
 class JitaiModel:
     id: NotetypeId
     name: str
     from_field: str
     to_field: str
-
-    def __init__(self, id: NotetypeId, name: str, from_field: str, to_field: str):
-        self.id = id
-        self.name = name
-        self.from_field = from_field
-        self.to_field = to_field
 
 
 def create_jitai_model_from_notetype_name_id(
@@ -53,15 +49,11 @@ def create_jitai_model_from_notetype_name_id(
     return JitaiModel(id, note_type.name, from_field, to_field)
 
 
+@dataclass
 class JitaiNote:
     id: NoteId
     model: JitaiModel
     from_value: str
-
-    def __init__(self, id: NoteId, model: JitaiModel, from_value: str):
-        self.id = id
-        self.model = model
-        self.from_value = from_value
 
 
 def create_jitai_note_from_id(
@@ -133,21 +125,21 @@ def apply_changes(
 
 def add_jitai(browser: Browser, direction: Direction) -> None:
     config = Config(assert_is_not_none(mw.addonManager.getConfig(__name__)))
-    converter = KyujitaiConverter()
+    converter = KyujitaiConverter()  # type: ignore
 
     if direction == Direction.KYUJITAI_TO_SHINJITAI:
         from_regexp = config.kyujitai_fields_regexp
         to_regexp = config.shinjitai_fields_regexp
 
         def convert(x: str) -> str:
-            return str(converter.kyujitai_to_shinjitai(x))
+            return str(converter.kyujitai_to_shinjitai(x))  # type: ignore
 
     elif direction == Direction.SHINJITAI_TO_KYUJITAI:
         from_regexp = config.shinjitai_fields_regexp
         to_regexp = config.kyujitai_fields_regexp
 
         def convert(x: str) -> str:
-            return str(converter.shinjitai_to_kyujitai(x))
+            return str(converter.shinjitai_to_kyujitai(x))  # type: ignore
 
     else:
         raise Exception("Invalid conversion direction")
