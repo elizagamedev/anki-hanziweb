@@ -38,6 +38,7 @@ class Config:
     web_field: str
     kyujitai_fields_regexp: Pattern[Any]
     shinjitai_fields_regexp: Pattern[Any]
+    chinese_reading_search_query: str
 
     def __init__(self, config: dict[str, Any]):
         config_version = config.get("config_version") or 0
@@ -69,6 +70,10 @@ class Config:
 
         self.shinjitai_fields_regexp = re.compile(
             config.get("shinjitai_fields_regexp") or "Shinjitai"
+        )
+
+        self.chinese_reading_search_query = (
+            config.get("chinese_reading_search_query") or ""
         )
 
 

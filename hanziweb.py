@@ -77,6 +77,7 @@ def create_hanzi_note(
     config: Config,
     id: NoteId,
     hanzi_models: dict[NotetypeId, HanziModel],
+    chinese_reading_note_ids: set[NoteId],
     converter: BasicConverter,
 ) -> HanziNote:
     note = mw.col.get_note(id)
@@ -91,12 +92,18 @@ def create_hanzi_note(
     for value in terms:
         hanzi.extend(HANZI_REGEXP.findall(value))
 
-    phonetic_series = [
-        COMPONENT_BY_PHONETIC_SERIES.get(
-            converter.shinjitai_to_kyujitai(h)  # type: ignore
-        )
-        for h in hanzi
-    ]
+    if id in chinese_reading_note_ids:
+        # This is a Chinese reading of a note, so the sound series is relevant.
+        phonetic_series = [
+            COMPONENT_BY_PHONETIC_SERIES.get(
+                converter.shinjitai_to_kyujitai(h)  # type: ignore
+            )
+            for h in hanzi
+        ]
+    else:
+        # This is not a Chinese reading (e.g. Japanese kun-yomi), so its sound series is
+        # not relevant.
+        phonetic_series = [None] * len(hanzi)
 
     latest_review = max(
         [mw.col.card_stats_data(card_id).latest_review for card_id in note.card_ids()]
@@ -241,6 +248,7 @@ def get_notes_to_update(
 def generate_report(
     config: Config,
     search_string: str,
+    chinese_reading_search_string: str,
     hanzi_models: dict[NotetypeId, HanziModel],
     notes_to_update: list[tuple[HanziNote, str]],
     hanzi_web: HanziWeb,
@@ -252,7 +260,8 @@ def generate_report(
     report = [
         "Hanzi Web will update the following notes. Please ensure this ",
         "looks correct before continuing.\n\n",
-        f"Search query:\n  {search_string}\n\n",
+        f"Search query:\n  {search_string}\n",
+        f"Chinese reading search query:\n  {chinese_reading_search_string}\n\n",
         f"Unique hanzi: {unique_hanzi(hanzi_web)}\n",
         f"Unique phonetic series: {unique_hanzi(phonetic_series_web)}\n\n",
         "Note types:\n",
@@ -306,8 +315,17 @@ def update() -> None:
         ),
     )
 
+    chinese_reading_search_string = mw.col.build_search_string(
+        search_string,
+        config.chinese_reading_search_query,
+    )
+
+    chinese_reading_note_ids = set(mw.col.find_notes(chinese_reading_search_string))
+
     notes = {
-        id: create_hanzi_note(config, id, hanzi_models, converter)
+        id: create_hanzi_note(
+            config, id, hanzi_models, chinese_reading_note_ids, converter
+        )
         for id in mw.col.find_notes(search_string)
     }
 
@@ -323,6 +341,7 @@ def update() -> None:
     report = generate_report(
         config,
         search_string,
+        chinese_reading_search_string,
         hanzi_models,
         notes_to_update,
         hanzi_web,
