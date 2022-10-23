@@ -15,6 +15,7 @@ from .common import (
     VERSION,
     Config,
     assert_is_not_none,
+    html_tag,
     mw,
     normalize_unicode,
     show_report,
@@ -136,9 +137,7 @@ class HanziWeb:
         self,
         config: Config,
         hanzi: str,
-        hanzi_class: str,
-        terms_class: str,
-        hanzi_note: HanziNote,
+        select: Callable[[HanziNote], bool],
     ) -> str:
         note_list = self.web.get(hanzi)
         if not note_list:
@@ -151,8 +150,7 @@ class HanziWeb:
             else (lambda: len(terms) >= config.max_terms_per_hanzi)
         )
         for other_hanzi_note in note_list:
-            if other_hanzi_note == hanzi_note:
-                # Don't inculde ourselves
+            if not select(other_hanzi_note):
                 continue
             for term in other_hanzi_note.terms:
                 if reached_term_limit():
@@ -160,13 +158,7 @@ class HanziWeb:
                 terms.append(term)
             if reached_term_limit():
                 break
-        if terms:
-            terms_str = config.term_separator.join(terms)
-            return (
-                f'<span class="{hanzi_class}">{hanzi}</span>'
-                f'<span class="{terms_class}">{terms_str}</span>'
-            )
-        return ""
+        return config.term_separator.join(terms)
 
 
 def create_hanzi_web(
@@ -217,60 +209,79 @@ def get_notes_to_update(
     onyomi: dict[str, list[str]],
 ) -> list[tuple[HanziNote, str]]:
     notes_to_maybe_update = [note for note in notes if note.model.has_web_field]
-
-    def build_web_entry(
-        hanzi: str, phonetic_component: Optional[str], hanzi_note: HanziNote
-    ) -> str:
-        hanzi_web_entry = hanzi_web.entry(
-            config, hanzi, "hanziweb-hanzi", "hanziweb-terms", hanzi_note
-        )
-        phonetic_component_entry = (
-            phonetic_series_web.entry(
-                config,
-                phonetic_component,
-                "hanziweb-phonetic-component",
-                "hanziweb-phonetic-terms",
-                hanzi_note,
-            )
-            if phonetic_component is not None
-            else ""
-        )
-        if hanzi_web_entry and phonetic_component_entry:
-            return f"{hanzi_web_entry}<br>{phonetic_component_entry}"
-        return f"{hanzi_web_entry}{phonetic_component_entry}"
-
-    def build_onyomi_entry(hanzi: str, chinese_reading: bool) -> str:
-        if not chinese_reading:
-            return ""
-        terms = onyomi.get(hanzi)
-        if not terms:
-            return ""
-        terms_str = config.term_separator.join(terms)
-        return f'<span class="hanziweb-onyomi">{terms_str}</span>'
-
-    def build_entry(
-        hanzi: str, phonetic_component: Optional[str], hanzi_note: HanziNote
-    ) -> str:
-        web_entry = build_web_entry(hanzi, phonetic_component, hanzi_note)
-        onyomi_entry = build_onyomi_entry(hanzi, hanzi_note.chinese_reading)
-        if web_entry and onyomi_entry:
-            return f"{web_entry}<br>{onyomi_entry}"
-        return f"{web_entry}{onyomi_entry}"
-
-    # Actually build the updates and see if they differ from the extant note,
-    # collecting them in a new set.
     notes_to_update = []
     for hanzi_note in notes_to_maybe_update:
         entries: list[str] = []
         for (hanzi, phonetic_component) in zip(
             hanzi_note.hanzi, hanzi_note.phonetic_series
         ):
-            entry = build_entry(hanzi, phonetic_component, hanzi_note)
-            if entry:
-                entries.append(f"<li>{entry}</li>")
+            same_terms_td_text = hanzi_web.entry(
+                config, hanzi, lambda x: x != hanzi_note
+            )
+            phonetic_series_terms_td_text = (
+                # Exclude any other entries that contain the exact same hanzi as this
+                # one; it just creates noise in the output.
+                phonetic_series_web.entry(
+                    config,
+                    phonetic_component,
+                    lambda x: x != hanzi_note and hanzi not in x.hanzi,
+                )
+                if phonetic_component
+                else ""
+            )
+            onyomi_terms_td_text = (
+                config.term_separator.join(onyomi.get(hanzi) or [])
+                if hanzi_note.chinese_reading
+                else ""
+            )
+            all_terms_td_text = [
+                same_terms_td_text,
+                phonetic_series_terms_td_text,
+                onyomi_terms_td_text,
+            ]
+
+            rowspan = len([x for x in all_terms_td_text if x])
+
+            hanzi_td_itself_div = html_tag("div", hanzi, clazz="hanziweb-itself")
+            hanzi_td_phonetic_component_div = (
+                html_tag("div", phonetic_component, clazz="hanziweb-phonetic-component")
+                if phonetic_component
+                else ""
+            )
+
+            hanzi_td = html_tag(
+                "td",
+                hanzi_td_itself_div + hanzi_td_phonetic_component_div,
+                clazz="hanziweb-hanzi",
+                rowspan=str(max(rowspan, 1)),
+            )
+
+            if rowspan == 0:
+                entries.append(
+                    html_tag("tr", hanzi_td + html_tag("td", "", colspan="2"))
+                )
+                continue
+
+            for clazz, kind_td_text, terms_td_text in zip(
+                ["hanziweb-same", "hanziweb-phonetic-series", "hanziweb-onyomi"],
+                ["同", "聲", "音"],
+                all_terms_td_text,
+            ):
+                if not terms_td_text:
+                    continue
+                kind_td = html_tag("td", kind_td_text, clazz=f"{clazz} hanziweb-kind")
+                terms_td = html_tag(
+                    "td",
+                    terms_td_text,
+                    clazz=f"{clazz} hanziweb-terms",
+                )
+                entries.append(html_tag("tr", hanzi_td + kind_td + terms_td))
+                hanzi_td = ""
 
         # Add to the list if the fields differ.
-        entries_str = f'<ol class="hanziweb">{"".join(entries)}</ol>' if entries else ""
+        entries_str = html_tag(
+            "table", html_tag("tbody", "".join(entries)), clazz="hanziweb"
+        )
         if entries_str != hanzi_note.web_field:
             notes_to_update.append((hanzi_note, entries_str))
 

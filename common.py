@@ -119,3 +119,12 @@ class ReportDialog(QDialog):  # type: ignore
 
 def show_report(text: str) -> bool:
     return bool(ReportDialog(text).exec() == QDialog.DialogCode.Accepted)
+
+
+def html_tag(tag: str, content: str, clazz: Optional[str] = None, **kwargs: str) -> str:
+    if clazz:
+        kwargs["class"] = clazz
+    properties = " ".join([f'{k}="{v}"' for k, v in kwargs.items()])
+    if properties:
+        return f"<{tag} {properties}>{content}</{tag}>"
+    return f"<{tag}>{content}</{tag}>"
