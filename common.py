@@ -121,10 +121,11 @@ def show_report(text: str) -> bool:
     return bool(ReportDialog(text).exec() == QDialog.DialogCode.Accepted)
 
 
-def html_tag(tag: str, content: str, clazz: Optional[str] = None, **kwargs: str) -> str:
-    if clazz:
-        kwargs["class"] = clazz
-    properties = " ".join([f'{k}="{v}"' for k, v in kwargs.items()])
+def html_tag(
+    tag: str, content: str, clazz: Optional[str] = None, **kwargs: Optional[str]
+) -> str:
+    kwargs["class"] = clazz
+    properties = " ".join([f'{k}="{v}"' for k, v in kwargs.items() if v is not None])
     if properties:
         return f"<{tag} {properties}>{content}</{tag}>"
     return f"<{tag}>{content}</{tag}>"

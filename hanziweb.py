@@ -71,7 +71,7 @@ class HanziNote:
     terms: Sequence[str]
     web_field: Optional[str]
     hanzi: Sequence[str]
-    phonetic_series: Sequence[Optional[str]]
+    phonetic_series: Sequence[set[str]]
     latest_review: int
     chinese_reading: bool
 
@@ -82,7 +82,7 @@ def create_hanzi_note(
     hanzi_models: dict[NotetypeId, HanziModel],
     chinese_reading_note_ids: set[NoteId],
     converter: BasicConverter,
-    component_by_phonetic_series: dict[str, str],
+    components_by_phonetic_series: dict[str, set[str]],
 ) -> HanziNote:
     note = mw.col.get_note(id)
 
@@ -101,15 +101,16 @@ def create_hanzi_note(
     if chinese_reading:
         # This is a Chinese reading of a note, so the sound series is relevant.
         phonetic_series = [
-            component_by_phonetic_series.get(
+            components_by_phonetic_series.get(
                 converter.shinjitai_to_kyujitai(h)  # type: ignore
             )
+            or set()
             for h in hanzi
         ]
     else:
         # This is not a Chinese reading (e.g. Japanese kun-yomi), so its sound series is
         # not relevant.
-        phonetic_series = [None] * len(hanzi)
+        phonetic_series = [set()] * len(hanzi)
 
     latest_review = max(
         [mw.col.card_stats_data(card_id).latest_review for card_id in note.card_ids()]
@@ -162,7 +163,7 @@ class HanziWeb:
 
 
 def create_hanzi_web(
-    notes: Iterable[HanziNote], field: Callable[[HanziNote], Sequence[str]]
+    notes: Iterable[HanziNote], field: Callable[[HanziNote], set[str]]
 ) -> HanziWeb:
     total_hanzi: set[str] = set()
     hanzi_sets: dict[str, set[HanziNote]] = {}
@@ -208,26 +209,35 @@ def get_notes_to_update(
     phonetic_series_web: HanziWeb,
     onyomi: dict[str, list[str]],
 ) -> list[tuple[HanziNote, str]]:
+    def build_phonetic_series_entry_line(hanzi_note: HanziNote, component: str) -> str:
+        entry = phonetic_series_web.entry(
+            config,
+            component,
+            # Exclude any other entries that contain the exact same hanzi as this
+            # one; it just creates noise in the output.
+            lambda x: x != hanzi_note and hanzi not in x.hanzi,
+        )
+        if not entry:
+            return ""
+        return f"{component}：{entry}"
+
     notes_to_maybe_update = [note for note in notes if note.model.has_web_field]
     notes_to_update = []
     for hanzi_note in notes_to_maybe_update:
         entries: list[str] = []
-        for (hanzi, phonetic_component) in zip(
+        for (hanzi, phonetic_components) in zip(
             hanzi_note.hanzi, hanzi_note.phonetic_series
         ):
             same_terms_td_text = hanzi_web.entry(
                 config, hanzi, lambda x: x != hanzi_note
             )
-            phonetic_series_terms_td_text = (
-                # Exclude any other entries that contain the exact same hanzi as this
-                # one; it just creates noise in the output.
-                phonetic_series_web.entry(
-                    config,
-                    phonetic_component,
-                    lambda x: x != hanzi_note and hanzi not in x.hanzi,
-                )
-                if phonetic_component
-                else ""
+            phonetic_series_terms_td_text = "<br>".join(
+                line
+                for line in [
+                    build_phonetic_series_entry_line(hanzi_note, component)
+                    for component in phonetic_components
+                ]
+                if line
             )
             onyomi_terms_td_text = (
                 config.term_separator.join(onyomi.get(hanzi) or [])
@@ -242,16 +252,9 @@ def get_notes_to_update(
 
             rowspan = len([x for x in all_terms_td_text if x])
 
-            hanzi_td_itself_div = html_tag("div", hanzi, clazz="hanziweb-itself")
-            hanzi_td_phonetic_component_div = (
-                html_tag("div", phonetic_component, clazz="hanziweb-phonetic-component")
-                if phonetic_component
-                else ""
-            )
-
             hanzi_td = html_tag(
                 "td",
-                hanzi_td_itself_div + hanzi_td_phonetic_component_div,
+                hanzi,
                 clazz="hanziweb-hanzi",
                 rowspan=str(max(rowspan, 1)),
             )
@@ -264,7 +267,7 @@ def get_notes_to_update(
 
             for clazz, kind_td_text, terms_td_text in zip(
                 ["hanziweb-same", "hanziweb-phonetic-series", "hanziweb-onyomi"],
-                ["同", "聲", "音"],
+                ["", "聲", "音"],
                 all_terms_td_text,
             ):
                 if not terms_td_text:
@@ -346,7 +349,7 @@ def apply_changes(
 
 
 def update() -> None:
-    from .phonetics import COMPONENT_BY_PHONETIC_SERIES
+    from .phonetics import COMPONENTS_BY_PHONETIC_SERIES
 
     config = Config(assert_is_not_none(mw.addonManager.getConfig(__name__)))
     converter = BasicConverter()  # type: ignore
@@ -379,14 +382,15 @@ def update() -> None:
             hanzi_models,
             chinese_reading_note_ids,
             converter,
-            COMPONENT_BY_PHONETIC_SERIES,
+            COMPONENTS_BY_PHONETIC_SERIES,
         )
         for id in mw.col.find_notes(search_string)
     }
 
-    hanzi_web = create_hanzi_web(notes.values(), lambda x: x.hanzi)
+    hanzi_web = create_hanzi_web(notes.values(), lambda x: set(x.hanzi))
     phonetic_series_web = create_hanzi_web(
-        notes.values(), lambda x: [y for y in x.phonetic_series if y is not None]
+        notes.values(),
+        lambda x: {p for s in x.phonetic_series for p in s},
     )
     notes_to_update = get_notes_to_update(
         config, notes.values(), hanzi_web, phonetic_series_web, onyomi

@@ -1224,11 +1224,19 @@ KOKUJI_PHONETIC_SERIES_BY_COMPONENT = {
 }
 
 
-# Generate inverse maps.
-COMPONENT_BY_PHONETIC_SERIES = {}
-for (phonetic_series_hanzi, all_hanzi) in chain(
-    OLD_CHINESE_PHONETIC_SERIES_BY_COMPONENT.items(),
-    KOKUJI_PHONETIC_SERIES_BY_COMPONENT.items(),
-):
-    for hanzi in all_hanzi:
-        COMPONENT_BY_PHONETIC_SERIES[hanzi] = phonetic_series_hanzi
+def _generate_components_by_phonetic_series() -> dict[str, set[str]]:
+    result: dict[str, set[str]] = {}
+    for (phonetic_series_hanzi, all_hanzi) in chain(
+        OLD_CHINESE_PHONETIC_SERIES_BY_COMPONENT.items(),
+        KOKUJI_PHONETIC_SERIES_BY_COMPONENT.items(),
+    ):
+        for hanzi in all_hanzi:
+            s = result.get(hanzi)
+            if s:
+                s.add(phonetic_series_hanzi)
+            else:
+                result[hanzi] = {phonetic_series_hanzi}
+    return result
+
+
+COMPONENTS_BY_PHONETIC_SERIES = _generate_components_by_phonetic_series()
