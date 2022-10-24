@@ -39,6 +39,7 @@ class Config:
     kyujitai_fields_regexp: Pattern[Any]
     shinjitai_fields_regexp: Pattern[Any]
     chinese_reading_search_query: str
+    add_onyomi_to_non_chinese_readings: bool
 
     def __init__(self, config: dict[str, Any]):
         config_version = config.get("config_version") or 0
@@ -74,6 +75,15 @@ class Config:
 
         self.chinese_reading_search_query = (
             config.get("chinese_reading_search_query") or ""
+        )
+
+        add_onyomi_to_non_chinese_readings = config.get(
+            "add_onyomi_to_non_chinese_readings"
+        )
+        self.add_onyomi_to_non_chinese_readings = (
+            add_onyomi_to_non_chinese_readings
+            if add_onyomi_to_non_chinese_readings is not None
+            else True
         )
 
 

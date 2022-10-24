@@ -242,6 +242,7 @@ def get_notes_to_update(
             onyomi_terms_td_text = (
                 config.term_separator.join(onyomi.get(hanzi) or [])
                 if hanzi_note.chinese_reading
+                or config.add_onyomi_to_non_chinese_readings
                 else ""
             )
             all_terms_td_text = [

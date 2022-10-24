@@ -1,4 +1,5 @@
 {
+  "add_onyomi_to_non_chinese_readings": true,
   "chinese_reading_search_query": "",
   "config_version": 0,
   "hanzi_fields_regexp": "Expression",
