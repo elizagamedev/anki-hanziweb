@@ -1,10 +1,11 @@
 {
-  "add_onyomi_to_non_chinese_readings": true,
-  "chinese_reading_search_query": "",
+  "add_onyomi_to_non_chinese_readings": false,
   "config_version": 0,
+  "expression_field_regexp": "Expression",
   "hanzi_fields_regexp": "Expression",
   "kyujitai_fields_regexp": "Kyujitai",
   "max_terms_per_hanzi": 5,
+  "reading_field_regexp": "Reading",
   "search_query": "",
   "shinjitai_fields_regexp": "Expression",
   "term_separator": "、",

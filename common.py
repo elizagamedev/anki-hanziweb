@@ -28,6 +28,12 @@ CONFIG_VERSION = 0
 # Matches each hanzi character individually.
 HANZI_REGEXP = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 
+# Matches each kana character individually.
+KANA_REGEXP = re.compile(r"[\u3040-\u309f\u30a0-\u30ffー]")
+
+# Matches katakana characters greedily.
+KATAKANA_GREEDY_REGEXP = re.compile(r"[\u30A0-\u30FF]+")
+
 
 class Config:
     config_version: int
@@ -38,8 +44,9 @@ class Config:
     web_field: str
     kyujitai_fields_regexp: Pattern[Any]
     shinjitai_fields_regexp: Pattern[Any]
-    chinese_reading_search_query: str
     add_onyomi_to_non_chinese_readings: bool
+    expression_field_regexp: Optional[Pattern[Any]]
+    reading_field_regexp: Optional[Pattern[Any]]
 
     def __init__(self, config: dict[str, Any]):
         config_version = config.get("config_version") or 0
@@ -73,10 +80,6 @@ class Config:
             config.get("shinjitai_fields_regexp") or "Shinjitai"
         )
 
-        self.chinese_reading_search_query = (
-            config.get("chinese_reading_search_query") or ""
-        )
-
         add_onyomi_to_non_chinese_readings = config.get(
             "add_onyomi_to_non_chinese_readings"
         )
@@ -84,6 +87,16 @@ class Config:
             add_onyomi_to_non_chinese_readings
             if add_onyomi_to_non_chinese_readings is not None
             else True
+        )
+
+        expression_field_regexp = config.get("expression_field_regexp")
+        self.expression_field_regexp = (
+            re.compile(expression_field_regexp) if expression_field_regexp else None
+        )
+
+        reading_field_regexp = config.get("reading_field_regexp")
+        self.reading_field_regexp = (
+            re.compile(reading_field_regexp) if reading_field_regexp else None
         )
 
 
