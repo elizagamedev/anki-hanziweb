@@ -13,7 +13,7 @@ it from the GitHub releases page, then install in Anki via `Tools -> Add-ons ->
 Install from file…`
 
 ## Configuration
-**Note that Hanzi Web has changed significantly from v0.1.3 to v1.0.0.** If you
+**Note that Hanzi Web has changed significantly from v0.1.2 to v1.0.0.** If you
 are getting nagged that your config is out of date, please re-read this section
 and then update your `config_version` to `1`.
 
@@ -96,13 +96,13 @@ each.
   kyūjitai. This is done because the included database of phonetic series is
   based on traditional Chinese, which more closely matches kyūjitai variants.
   Regardless, there is not perfect coverage of Japanese.
-- If both a `shinjitai_fields_regexp` field and a `kyujitai_fields_regexp` field
-  are found on a note, there will be a *one way conversion* from shinjitai to
-  kyūjitai on the matched notes. The results are not perfect. The intent is not
-  necessary for users to study the kyūjitai forms (this is probably not
-  generally helpful when learning Japanese), but rather to be able to have
-  broader coverage when looking up Japanese words in Chinese dictionaries, for
-  example, the [Outlier Dictionary of Chinese Characters](https://www.outlier-linguistics.com/products/outlier-dictionary-of-chinese-characters) in Pleco.
+- If both a `hanzi_fields_regexp` field and a `kyujitai_field` field are found
+  on a note, there will be a *one way conversion* from shinjitai to kyūjitai on
+  the matched notes. The results are not perfect. The intent is not necessary
+  for users to study the kyūjitai forms (this is probably not generally helpful
+  when learning Japanese), but rather to be able to have broader coverage when
+  looking up Japanese words in Chinese dictionaries, for example, the [Outlier
+  Dictionary of Chinese Characters](https://www.outlier-linguistics.com/products/outlier-dictionary-of-chinese-characters) in Pleco.
 
 ## Usage
 Ensure that the note types of the notes you want to add web entries to have a
@@ -117,3 +117,6 @@ a report of the pending changes will be shown; you’ll want to consider this
 carefully if it’s your first time running Hanzi Web or if you’ve recently
 changed your configuration to make sure that you haven’t made any mistakes.
 Click “Apply” and your notes’ “HanziWeb” fields will be filled!
+
+Alternatively, you can set `auto_run_on_sync` to `true` to automatically run
+Hanzi Web before and after each sync operation.
