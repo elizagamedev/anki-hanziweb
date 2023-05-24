@@ -86,7 +86,7 @@ def generate_report(
 
         if converted_notes:
             report.append(f"\nNotes to update ({len(converted_notes)}):\n")
-            for (note, to_value) in converted_notes:
+            for note, to_value in converted_notes:
                 report.append(f"  {note.id} {note.from_value} -> {to_value}\n")
         else:
             report.append(

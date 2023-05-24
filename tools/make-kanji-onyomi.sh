@@ -9,7 +9,7 @@ if [[ $# -ne 2 ]]; then
   exit 1
 fi
 
-xq '
+xq -c '
   [.kanjidic2.character | .[]
     | {"key": .literal,
        "value": [.reading_meaning.rmgroup.reading

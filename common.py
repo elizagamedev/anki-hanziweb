@@ -12,7 +12,7 @@ from aqt.qt import (  # type: ignore
     QPlainTextEdit,
     QVBoxLayout,
 )
-from aqt.utils import qconnect
+from aqt.utils import qconnect, showWarning
 
 
 def assert_is_not_none(optional: Optional[Any]) -> Any:
@@ -23,7 +23,7 @@ def assert_is_not_none(optional: Optional[Any]) -> Any:
 mw: AnkiQt = assert_is_not_none(mw_optional)
 
 VERSION = "0.1.2"
-CONFIG_VERSION = 0
+CONFIG_VERSION = 1
 
 # Matches each hanzi character individually.
 HANZI_REGEXP = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
@@ -38,13 +38,13 @@ class Config:
     web_field: str
     kyujitai_fields_regexp: Pattern[Any]
     shinjitai_fields_regexp: Pattern[Any]
-    chinese_reading_search_query: str
+    japanese_search_query: str
 
     def __init__(self, config: dict[str, Any]):
-        config_version = config.get("config_version") or 0
-        if config_version > CONFIG_VERSION:
+        self.config_version = config.get("config_version") or 0
+        if self.config_version > CONFIG_VERSION:
             raise Exception(
-                f"`config_version' {config_version} too new "
+                f"`config_version' {self.config_version} too new "
                 f"(expecting <= {CONFIG_VERSION})"
             )
 
@@ -69,12 +69,10 @@ class Config:
         )
 
         self.shinjitai_fields_regexp = re.compile(
-            config.get("shinjitai_fields_regexp") or "Shinjitai"
+            config.get("shinjitai_fields_regexp") or "Expression"
         )
 
-        self.chinese_reading_search_query = (
-            config.get("chinese_reading_search_query") or ""
-        )
+        self.japanese_search_query = config.get("japanese_search_query") or ""
 
 
 def normalize_unicode(string: str) -> str:
@@ -119,6 +117,13 @@ class ReportDialog(QDialog):  # type: ignore
 
 def show_report(text: str) -> bool:
     return bool(ReportDialog(text).exec() == QDialog.DialogCode.Accepted)
+
+
+def show_update_nag() -> None:
+    showWarning(
+        "Hanzi Web has been updated, and your configuration is out of date. "
+        + "Please review the README and update your configuration file."
+    )
 
 
 def html_tag(

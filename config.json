@@ -1,7 +1,7 @@
 {
-  "chinese_reading_search_query": "",
-  "config_version": 0,
+  "config_version": 1,
   "hanzi_fields_regexp": "Expression",
+  "japanese_search_query": "",
   "kyujitai_fields_regexp": "Kyujitai",
   "max_terms_per_hanzi": 5,
   "search_query": "",

@@ -11,6 +11,7 @@ from aqt.qt import QAction, QMenu  # type: ignore
 from aqt.utils import qconnect, showInfo, tooltip
 
 from .common import (
+    CONFIG_VERSION,
     HANZI_REGEXP,
     VERSION,
     Config,
@@ -19,6 +20,7 @@ from .common import (
     mw,
     normalize_unicode,
     show_report,
+    show_update_nag,
 )
 from .kyujipy import BasicConverter
 
@@ -73,14 +75,14 @@ class HanziNote:
     hanzi: Sequence[str]
     phonetic_series: Sequence[set[str]]
     latest_review: int
-    chinese_reading: bool
+    is_japanese: bool
 
 
 def create_hanzi_note(
     config: Config,
     id: NoteId,
     hanzi_models: dict[NotetypeId, HanziModel],
-    chinese_reading_note_ids: set[NoteId],
+    japanese_note_ids: set[NoteId],
     converter: BasicConverter,
     components_by_phonetic_series: dict[str, set[str]],
 ) -> HanziNote:
@@ -96,21 +98,15 @@ def create_hanzi_note(
     for value in terms:
         hanzi.extend(HANZI_REGEXP.findall(value))
 
-    chinese_reading = id in chinese_reading_note_ids
+    is_japanese = id in japanese_note_ids
 
-    if chinese_reading:
-        # This is a Chinese reading of a note, so the sound series is relevant.
-        phonetic_series = [
-            components_by_phonetic_series.get(
-                converter.shinjitai_to_kyujitai(h)  # type: ignore
-            )
-            or set()
-            for h in hanzi
-        ]
-    else:
-        # This is not a Chinese reading (e.g. Japanese kun-yomi), so its sound series is
-        # not relevant.
-        phonetic_series = [set()] * len(hanzi)
+    phonetic_series = [
+        components_by_phonetic_series.get(
+            converter.shinjitai_to_kyujitai(h) if is_japanese else h  # type: ignore
+        )
+        or set()
+        for h in hanzi
+    ]
 
     latest_review = max(
         [mw.col.card_stats_data(card_id).latest_review for card_id in note.card_ids()]
@@ -125,7 +121,7 @@ def create_hanzi_note(
         hanzi,
         phonetic_series,
         latest_review,
-        chinese_reading,
+        is_japanese,
     )
 
 
@@ -225,7 +221,7 @@ def get_notes_to_update(
     notes_to_update = []
     for hanzi_note in notes_to_maybe_update:
         entries: list[str] = []
-        for (hanzi, phonetic_components) in zip(
+        for hanzi, phonetic_components in zip(
             hanzi_note.hanzi, hanzi_note.phonetic_series
         ):
             same_terms_td_text = hanzi_web.entry(
@@ -239,15 +235,12 @@ def get_notes_to_update(
                 ]
                 if line
             )
-            onyomi_terms_td_text = (
-                config.term_separator.join(onyomi.get(hanzi) or [])
-                if hanzi_note.chinese_reading
-                else ""
-            )
             all_terms_td_text = [
                 same_terms_td_text,
                 phonetic_series_terms_td_text,
-                onyomi_terms_td_text,
+                config.term_separator.join(onyomi.get(hanzi) or [])
+                if hanzi_note.is_japanese
+                else "",
             ]
 
             rowspan = len([x for x in all_terms_td_text if x])
@@ -294,7 +287,7 @@ def get_notes_to_update(
 def generate_report(
     config: Config,
     search_string: str,
-    chinese_reading_search_string: str,
+    japanese_search_string: str,
     hanzi_models: dict[NotetypeId, HanziModel],
     notes_to_update: list[tuple[HanziNote, str]],
     hanzi_web: HanziWeb,
@@ -307,7 +300,7 @@ def generate_report(
         "Hanzi Web will update the following notes. Please ensure this ",
         "looks correct before continuing.\n\n",
         f"Search query:\n  {search_string}\n",
-        f"Chinese reading search query:\n  {chinese_reading_search_string}\n\n",
+        f"Japanese search query:\n  {japanese_search_string}\n",
         f"Unique hanzi: {unique_hanzi(hanzi_web)}\n",
         f"Unique phonetic series: {unique_hanzi(phonetic_series_web)}\n\n",
         "Note types:\n",
@@ -319,7 +312,7 @@ def generate_report(
         report.append(
             f"\nNotes to update [{config.web_field}] ({len(notes_to_update)}):\n"
         )
-        for (note, _) in notes_to_update:
+        for note, _ in notes_to_update:
             report.append(f"  {note.id} {note.fields[0]}\n")
     else:
         report.append("\nAll notes already up to date.\n")
@@ -348,17 +341,21 @@ def apply_changes(
     tooltip(f"{len(notes_to_update)} notes updated.", parent=mw)
 
 
-def update() -> None:
-    from .phonetics import COMPONENTS_BY_PHONETIC_SERIES
-
-    config = Config(assert_is_not_none(mw.addonManager.getConfig(__name__)))
+def update(config: Config) -> None:
     converter = BasicConverter()  # type: ignore
     hanzi_models = get_hanzi_models(config)
 
+    addon_directory = PurePath(__file__).parent
+
     with open(
-        PurePath(__file__).parent / "kanji-onyomi.json", "r", encoding="utf-8"
+        addon_directory / "kanji-onyomi.json", "r", encoding="utf-8"
     ) as onyomi_file:
         onyomi = json.load(onyomi_file)
+
+    with open(
+        addon_directory / "phonetics.json", "r", encoding="utf-8"
+    ) as phonetics_file:
+        phonetics = json.load(phonetics_file)
 
     search_string = mw.col.build_search_string(
         config.search_query,
@@ -368,21 +365,29 @@ def update() -> None:
         ),
     )
 
-    chinese_reading_search_string = mw.col.build_search_string(
-        search_string,
-        config.chinese_reading_search_query,
+    japanese_search_string = (
+        mw.col.build_search_string(
+            search_string,
+            config.japanese_search_query,
+        )
+        if config.japanese_search_query
+        else "N/A"
     )
 
-    chinese_reading_note_ids = set(mw.col.find_notes(chinese_reading_search_string))
+    japanese_note_ids = (
+        set(mw.col.find_notes(japanese_search_string))
+        if config.japanese_search_query
+        else set()
+    )
 
     notes = {
         id: create_hanzi_note(
             config,
             id,
             hanzi_models,
-            chinese_reading_note_ids,
+            japanese_note_ids,
             converter,
-            COMPONENTS_BY_PHONETIC_SERIES,
+            phonetics,
         )
         for id in mw.col.find_notes(search_string)
     }
@@ -400,7 +405,7 @@ def update() -> None:
     report = generate_report(
         config,
         search_string,
-        chinese_reading_search_string,
+        japanese_search_string,
         hanzi_models,
         notes_to_update,
         hanzi_web,
@@ -412,6 +417,14 @@ def update() -> None:
     apply_changes(config, notes_to_update)
 
 
+def maybe_update() -> None:
+    config = Config(assert_is_not_none(mw.addonManager.getConfig(__name__)))
+    if config.config_version < CONFIG_VERSION:
+        show_update_nag()
+    else:
+        update(config)
+
+
 def init() -> None:
     menu = QMenu("Hanzi &Web", mw)
     update_action = QAction("&Update notes", menu)
@@ -419,6 +432,6 @@ def init() -> None:
     update_action.setShortcut("Ctrl+W")
     menu.addAction(update_action)
     menu.addAction(about_action)
-    qconnect(update_action.triggered, update)
+    qconnect(update_action.triggered, maybe_update)
     qconnect(about_action.triggered, lambda: showInfo(ABOUT_TEXT))
     mw.form.menuTools.addMenu(menu)

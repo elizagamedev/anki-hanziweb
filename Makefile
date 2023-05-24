@@ -12,10 +12,11 @@ DEPS		:= __init__.py \
 		   CHANGELOG.md \
 		   LICENSE \
 		   kyujipy \
-		   kanji-onyomi.json
+		   kanji-onyomi.json \
+		   phonetics.json
 
 all: 	$(ANKIADDON)
-clean:	; rm -rf *.ankiaddon __pycache__ README.html kanji-onyomi.json
+clean:	; rm -rf *.ankiaddon __pycache__ README.html kanji-onyomi.json phonetics.json
 .PHONY: all clean format
 
 format:
@@ -25,6 +26,9 @@ format:
 
 kanji-onyomi.json: tools/make-kanji-onyomi.sh $(KANJIDIC)
 	tools/make-kanji-onyomi.sh $(KANJIDIC) kanji-onyomi.json
+
+phonetics.json: tools/make-phonetics.py
+	python3 tools/make-phonetics.py > phonetics.json
 
 $(ANKIADDON): $(DEPS)
 	rm -f $@

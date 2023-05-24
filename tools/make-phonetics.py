@@ -1,141 +1,6 @@
 from itertools import chain
-
-# Data retrieved from The Kanji Code 2022-10-18.
-#
-# https://thekanjicode.com/list-of-phonetic-components/
-KANJI_PHONETIC_BY_COMPONENT = {
-    "永": "エイ",
-    "可": "カ",
-    "加": "カ",
-    "化": "カ",
-    "果": "カ",
-    "咼": "カ",
-    "牙": "ガ",
-    "我": "ガ",
-    "義": "ギ",
-    "各": "カク",
-    "干": "カン",
-    "官": "カン",
-    "門": "カン",
-    "𠦝": "カン",
-    "几": "キ",
-    "⼰": "キ",
-    "其": "キ",
-    "奇": "キ",
-    "及": "キュウ",
-    "求": "キュウ",
-    "巨": "キョ",
-    "兄": "キョウ",
-    "竟": "キョウ",
-    "共": "キョウ",
-    "夹": "キョウ",
-    "區": "ク",
-    "禺": "グウ",
-    "屈": "クツ",
-    "絲": "ケイ",
-    "圭": "ケイ",
-    "圣": "ケイ",
-    "敬": "ケイ",
-    "券": "ケン",
-    "犬": "ケン",
-    "㑒": "ケン",
-    "縣": "ケン",
-    "臤": "ケン",
-    "古": "コ",
-    "五": "ゴ",
-    "工": "コウ",
-    "⺹": "コウ",
-    "交": "コウ",
-    "洪": "コウ",
-    "冓": "コウ",
-    "高": "コウ",
-    "艮": "コン",
-    "左": "サ",
-    "少": "サ",
-    "采": "サイ",
-    "才": "ザイ",
-    "齊": "サイ",
-    "乍": "サク",
-    "祭": "サツ",
-    "參": "サン",
-    "司": "シ",
-    "士": "シ",
-    "次": "シ",
-    "匕": "シ",
-    "直": "ショク",
-    "寺": "ジ",
-    "昔": "シャク",
-    "朱": "シュ",
-    "十": "ジュウ",
-    "旬": "ジュン",
-    "小": "ショウ",
-    "肖": "ショウ",
-    "召": "ショウ",
-    "申": "シン",
-    "辰": "シン",
-    "㐱": "シン",
-    "亲": "シン",
-    "生": "セイ",
-    "正": "セイ",
-    "靑": "セイ",
-    "成": "セイ",
-    "泉": "セン",
-    "㦮": "セン",
-    "善": "ゼン",
-    "且": "ソ",
-    "相": "ソウ",
-    "曾": "ソウ",
-    "曹": "ソウ",
-    "喿": "ソウ",
-    "則": "ソク",
-    "弟": "ダイ",
-    "旦": "タン",
-    "單": "タン",
-    "知": "チ",
-    "竹": "チク",
-    "中": "チュウ",
-    "主": "チュウ",
-    "長": "チョウ",
-    "兆": "チョウ",
-    "甬": "ツウ",
-    "丁": "テイ",
-    "⽦": "テイ",
-    "氐": "テイ",
-    "廷": "テイ",
-    "啇": "テキ",
-    "同": "ドウ",
-    "童": "ドウ",
-    "壬": "ニン",
-    "忍": "ニン",
-    "白": "ハク",
-    "半": "ハン",
-    "反": "ハン",
-    "必": "ヒ",
-    "皮": "ヒ",
-    "非": "ヒ",
-    "付": "フ",
-    "畐": "フク",
-    "复": "フク",
-    "分": "フン",
-    "辟": "へキ",
-    "扁": "へン",
-    "甫": "ホ",
-    "莫": "ボ",
-    "包": "ホウ",
-    "夆": "ホウ",
-    "亡": "ボウ",
-    "麻": "マ",
-    "未": "ミ",
-    "宓": "ミツ",
-    "名": "メイ",
-    "明": "メイ",
-    "面": "メン",
-    "令": "レイ",
-    "良": "ロウ",
-    "予": "ヨ",
-    "羊": "ヨウ",
-}
-
+import json
+import sys
 
 # Data retrieved from Wiktionary 2022-10-18.
 #
@@ -1224,19 +1089,20 @@ KOKUJI_PHONETIC_SERIES_BY_COMPONENT = {
 }
 
 
-def _generate_components_by_phonetic_series() -> dict[str, set[str]]:
+def generate_components_by_phonetic_series() -> dict[str, set[str]]:
     result: dict[str, set[str]] = {}
-    for (phonetic_series_hanzi, all_hanzi) in chain(
+    for phonetic_series_hanzi, all_hanzi in chain(
         OLD_CHINESE_PHONETIC_SERIES_BY_COMPONENT.items(),
         KOKUJI_PHONETIC_SERIES_BY_COMPONENT.items(),
     ):
         for hanzi in all_hanzi:
             s = result.get(hanzi)
             if s:
-                s.add(phonetic_series_hanzi)
+                if phonetic_series_hanzi not in s:
+                    s += phonetic_series_hanzi
             else:
-                result[hanzi] = {phonetic_series_hanzi}
+                result[hanzi] = phonetic_series_hanzi
     return result
 
 
-COMPONENTS_BY_PHONETIC_SERIES = _generate_components_by_phonetic_series()
+json.dump(generate_components_by_phonetic_series(), sys.stdout, ensure_ascii=False)

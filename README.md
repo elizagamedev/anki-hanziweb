@@ -48,6 +48,33 @@ ol.hanziweb {
 }
 ```
 
+### Chinese notes vs. Japanese notes
+
+Notes can be configured to be recognized as either Chinese or Japanese by
+adjusting the `japanese_search_query` option. There are subtle differences to
+each.
+
+### Chinese
+
+- Characters are used as-is to look up phonetic series. In the future,
+  simplified characters will be converted to traditional characters.
+- Japanese on'yomi readings are omitted.
+
+### Japanese
+
+- When looking up the phonetic series, shinjitai characters will be converted to
+  kyūjitai. This is done because the included database of phonetic series is
+  based on traditional Chinese, which more closely matches kyūjitai variants.
+  Regardless, there is not perfect coverage of Japanese.
+- If both a `shinjitai_fields_regexp` field and a `kyujitai_fields_regexp` field
+  are found on a note, there will be a *one way conversion* from shinjitai to
+  kyūjitai on the matched notes. The results are not perfect. The intent is not
+  necessary for users to study the kyūjitai forms (this is probably not
+  generally helpful when learning Japanese), but rather to be able to have
+  broader coverage when looking up Japanese words in Chinese dictionaries, for
+  example, the [Outlier Dictionary of Chinese Characters](https://www.outlier-linguistics.com/products/outlier-dictionary-of-chinese-characters) in Pleco.
+
+
 ## Usage
 Ensure that the note types of the notes you want to add web entries to have a
 field called “HanziWeb” (without quotes). Also ensure that you’ve configured
