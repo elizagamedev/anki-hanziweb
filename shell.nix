@@ -1,19 +1,10 @@
-{ pkgs ? import <nixpkgs> { } }:
-let
-  aqt = p: p.callPackage ./aqt.nix { };
-  python-with-my-packages = pkgs.python3.withPackages (p: with p; [
-    (aqt p)
-    python-lsp-server
-    pylsp-mypy
-    python-lsp-black
-    pyls-isort
-  ]);
-in
-pkgs.mkShell {
-  nativeBuildInputs = with pkgs; [
-    python-with-my-packages
-    black
-    gnumake
-    zip
-  ];
-}
+(import
+  (
+    let lock = builtins.fromJSON (builtins.readFile ./flake.lock); in
+    fetchTarball {
+      url = "https://github.com/edolstra/flake-compat/archive/${lock.nodes.flake-compat.locked.rev}.tar.gz";
+      sha256 = lock.nodes.flake-compat.locked.narHash;
+    }
+  )
+  { src = ./.; }
+).shellNix
