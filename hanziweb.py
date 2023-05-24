@@ -9,6 +9,7 @@ from anki.models import NotetypeId, NotetypeNameId
 from anki.notes import NoteId
 from aqt.qt import QAction, QMenu  # type: ignore
 from aqt.utils import qconnect, showInfo, tooltip
+from aqt import gui_hooks
 
 from .common import (
     CONFIG_VERSION,
@@ -320,10 +321,13 @@ def generate_report(
 
 
 def apply_changes(
-    config: Config, notes_to_update: Sequence[tuple[HanziNote, str]]
+    config: Config,
+    notes_to_update: Sequence[tuple[HanziNote, str]],
+    is_interactive: bool,
 ) -> None:
     if not notes_to_update:
-        tooltip("Nothing done.", parent=mw)
+        if is_interactive:
+            tooltip("Nothing done.", parent=mw)
         return
 
     # The checkpoint system (mw.checkpoint() and mw.reset()) are "obsoleted" in favor of
@@ -338,10 +342,10 @@ def apply_changes(
         note[config.web_field] = entries
         note.flush()
     mw.reset()
-    tooltip(f"{len(notes_to_update)} notes updated.", parent=mw)
+    tooltip(f"Hanzi Web: {len(notes_to_update)} notes updated.", parent=mw)
 
 
-def update(config: Config) -> None:
+def update(config: Config, is_interactive: bool) -> None:
     converter = BasicConverter()  # type: ignore
     hanzi_models = get_hanzi_models(config)
 
@@ -401,28 +405,35 @@ def update(config: Config) -> None:
         config, notes.values(), hanzi_web, phonetic_series_web, onyomi
     )
 
-    # Summarize the operation to the user.
-    report = generate_report(
-        config,
-        search_string,
-        japanese_search_string,
-        hanzi_models,
-        notes_to_update,
-        hanzi_web,
-        phonetic_series_web,
-    )
-    if not show_report(report):
-        return
+    if is_interactive:
+        # Summarize the operation to the user.
+        report = generate_report(
+            config,
+            search_string,
+            japanese_search_string,
+            hanzi_models,
+            notes_to_update,
+            hanzi_web,
+            phonetic_series_web,
+        )
+        if not show_report(report):
+            return
 
-    apply_changes(config, notes_to_update)
+    apply_changes(config, notes_to_update, is_interactive)
 
 
-def maybe_update() -> None:
+def maybe_update_from_gui() -> None:
     config = Config(assert_is_not_none(mw.addonManager.getConfig(__name__)))
     if config.config_version < CONFIG_VERSION:
         show_update_nag()
     else:
-        update(config)
+        update(config, is_interactive=True)
+
+
+def maybe_update_from_hook() -> None:
+    config = Config(assert_is_not_none(mw.addonManager.getConfig(__name__)))
+    if config.config_version >= CONFIG_VERSION and config.auto_run_on_sync:
+        update(config, is_interactive=False)
 
 
 def init() -> None:
@@ -432,6 +443,9 @@ def init() -> None:
     update_action.setShortcut("Ctrl+W")
     menu.addAction(update_action)
     menu.addAction(about_action)
-    qconnect(update_action.triggered, maybe_update)
+    qconnect(update_action.triggered, maybe_update_from_gui)
     qconnect(about_action.triggered, lambda: showInfo(ABOUT_TEXT))
     mw.form.menuTools.addMenu(menu)
+
+    gui_hooks.sync_will_start.append(maybe_update_from_hook)
+    gui_hooks.sync_did_finish.append(maybe_update_from_hook)

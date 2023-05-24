@@ -1,3 +1,11 @@
+### `auto_run_on_sync`
+If `true`, automatically run Hanzi Web before and after each sync. With this
+enabled, after you review cards on another device, you'll typically have to sync
+twice in a row on the device that’s running Hanzi Web: once to download their
+changes, and once again to synchronize the updated Hanzi Web entries.
+
+Default: `false`.
+
 ### `config_version`
 This is used internally by Hanzi Web to ensure compatibility with future
 versions. If you are nagged about your configuration being out of date, please
@@ -39,7 +47,7 @@ Default: `"5"`.
 
 ### `search_query`
 Only notes will be considered which match this search query. If empty, this
-includes the entire database. You could use this to limit Hanzi Web's operation
+includes the entire database. You could use this to limit Hanzi Web’s operation
 to specific decks, note types, tags, or other creative use-cases. See the [Anki
 manual on Searching](https://docs.ankiweb.net/searching.html#tags-decks-cards-and-notes).
 
@@ -55,6 +63,6 @@ Default: `"、"`.
 
 ### `web_field`
 For each considered note, the output of the web will be placed in this field if
-it exists. This name is case-sensitive. You probably don't want to change this.
+it exists. This name is case-sensitive. You probably don’t want to change this.
 
 Default: `"HanziWeb"`.

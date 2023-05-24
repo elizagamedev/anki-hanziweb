@@ -39,6 +39,7 @@ class Config:
     kyujitai_fields_regexp: Pattern[Any]
     shinjitai_fields_regexp: Pattern[Any]
     japanese_search_query: str
+    auto_run_on_sync: bool
 
     def __init__(self, config: dict[str, Any]):
         self.config_version = config.get("config_version") or 0
@@ -73,6 +74,9 @@ class Config:
         )
 
         self.japanese_search_query = config.get("japanese_search_query") or ""
+
+        auto_run_on_sync = config.get("auto_run_on_sync")
+        self.auto_run_on_sync = False if auto_run_on_sync is None else auto_run_on_sync
 
 
 def normalize_unicode(string: str) -> str:

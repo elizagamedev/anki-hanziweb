@@ -1,4 +1,5 @@
 {
+  "auto_run_on_sync": false,
   "config_version": 1,
   "hanzi_fields_regexp": "Expression",
   "japanese_search_query": "",
