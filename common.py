@@ -22,7 +22,7 @@ def assert_is_not_none(optional: Optional[Any]) -> Any:
 
 mw: AnkiQt = assert_is_not_none(mw_optional)
 
-VERSION = "0.1.2"
+VERSION = "1.0.0"
 CONFIG_VERSION = 1
 
 # Matches each hanzi character individually.

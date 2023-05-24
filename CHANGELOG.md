@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2023-05-24
+### Added
+- Chinese phonetic series and on'yomi information added to output.
+- Conversion from shinjitai to kyujitai forms for Japanese terms.
+- Option to automatically run Hanzi Web on sync.
+
+### Changed
+- Hanzi Web output is now a `table`, not a list.
+
 ## [0.1.2] - 2022-10-18
 ### Added
 - Hanzi Web actions can now be undone.
@@ -24,7 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release.
 
-[Unreleased]: https://github.com/elizagamedev/anki-hanziweb/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/elizagamedev/anki-hanziweb/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/elizagamedev/anki-hanziweb/compare/v0.1.2...v1.0.0
 [0.1.2]: https://github.com/elizagamedev/anki-hanziweb/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/elizagamedev/anki-hanziweb/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/elizagamedev/anki-hanziweb/releases/tag/v0.1.0
