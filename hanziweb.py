@@ -4,44 +4,18 @@ from pathlib import PurePath
 from re import Pattern
 from typing import Any, Callable, Iterable, Optional, Sequence
 
-from anki.collection import SearchNode
 from anki.models import NotetypeId, NotetypeNameId
 from anki.notes import NoteId
-from aqt.qt import QAction, QMenu  # type: ignore
-from aqt.utils import qconnect, showInfo, tooltip
-from aqt import gui_hooks
 
 from .common import (
-    CONFIG_VERSION,
     HANZI_REGEXP,
-    VERSION,
     Config,
     assert_is_not_none,
     html_tag,
     mw,
     normalize_unicode,
-    show_report,
-    show_update_nag,
 )
 from .kyujipy import BasicConverter
-
-GPL = (
-    "This program is free software: you can redistribute it and/or modify it "
-    "under the terms of the GNU General Public License as published by the "
-    "Free Software Foundation, either version 3 of the License, or (at your "
-    "option) any later version.\n\n"
-    "This program is distributed in the hope that it will be useful, but "
-    "WITHOUT ANY WARRANTY; without even the implied warranty of "
-    "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General "
-    "Public License for more details.\n\n"
-    "You should have received a copy of the GNU General Public License along "
-    "with this program. If not, see <https://www.gnu.org/licenses/>."
-)
-
-ABOUT_TEXT = (
-    f"Hanzi Web {VERSION} by Eliza\n\n"
-    "For detailed usage instructions, see the addon page.\n\n" + GPL
-)
 
 
 @dataclass(eq=False, frozen=True)
@@ -287,9 +261,6 @@ def get_notes_to_update(
 
 def generate_report(
     config: Config,
-    search_string: str,
-    japanese_search_string: str,
-    hanzi_models: dict[NotetypeId, HanziModel],
     notes_to_update: list[tuple[HanziNote, str]],
     hanzi_web: HanziWeb,
     phonetic_series_web: HanziWeb,
@@ -298,17 +269,10 @@ def generate_report(
         return f"{len(web.web)} seen, {web.total_hanzi} total"
 
     report = [
-        "Hanzi Web will update the following notes. Please ensure this ",
-        "looks correct before continuing.\n\n",
-        f"Search query:\n  {search_string}\n",
-        f"Japanese search query:\n  {japanese_search_string}\n",
+        f"== Hanzi Web.\n\n",
         f"Unique hanzi: {unique_hanzi(hanzi_web)}\n",
-        f"Unique phonetic series: {unique_hanzi(phonetic_series_web)}\n\n",
-        "Note types:\n",
+        f"Unique phonetic series: {unique_hanzi(phonetic_series_web)}\n",
     ]
-    for model in hanzi_models.values():
-        fields = ", ".join(model.fields)
-        report.append(f"  {model.name} [{fields}]\n")
     if notes_to_update:
         report.append(
             f"\nNotes to update [{config.web_field}] ({len(notes_to_update)}):\n"
@@ -320,132 +284,73 @@ def generate_report(
     return "".join(report)
 
 
-def apply_changes(
-    config: Config,
-    notes_to_update: Sequence[tuple[HanziNote, str]],
-    is_interactive: bool,
-) -> None:
-    if not notes_to_update:
-        if is_interactive:
-            tooltip("Nothing done.", parent=mw)
-        return
+class PendingChanges:
+    config: Config
+    report: str
+    notes_to_update: Sequence[tuple[HanziNote, str]]
 
-    # The checkpoint system (mw.checkpoint() and mw.reset()) are "obsoleted" in favor of
-    # Collection Operations. However, Collection Operations have a very short-term
-    # memory (~30), which is unsuitable for the potentially massive amounts of changes
-    # that Hanzi Web will do on a collection.
-    #
-    # https://addon-docs.ankiweb.net/background-ops.html?highlight=undo#collection-operations
-    mw.checkpoint("Hanzi Web")
-    for hanzi_note, entries in notes_to_update:
-        note = mw.col.get_note(hanzi_note.id)
-        note[config.web_field] = entries
-        note.flush()
-    mw.reset()
-    tooltip(f"Hanzi Web: {len(notes_to_update)} notes updated.", parent=mw)
+    def __init__(
+        self,
+        config: Config,
+        note_ids: Sequence[NoteId],
+        japanese_note_ids: Sequence[NoteId],
+        hanzi_models: dict[NotetypeId, HanziModel],
+    ):
+        self.config = config
 
+        converter = BasicConverter()  # type: ignore
 
-def update(config: Config, is_interactive: bool) -> None:
-    converter = BasicConverter()  # type: ignore
-    hanzi_models = get_hanzi_models(config)
+        addon_directory = PurePath(__file__).parent
 
-    addon_directory = PurePath(__file__).parent
+        with open(
+            addon_directory / "kanji-onyomi.json", "r", encoding="utf-8"
+        ) as onyomi_file:
+            onyomi = json.load(onyomi_file)
 
-    with open(
-        addon_directory / "kanji-onyomi.json", "r", encoding="utf-8"
-    ) as onyomi_file:
-        onyomi = json.load(onyomi_file)
+        with open(
+            addon_directory / "phonetics.json", "r", encoding="utf-8"
+        ) as phonetics_file:
+            phonetics = json.load(phonetics_file)
 
-    with open(
-        addon_directory / "phonetics.json", "r", encoding="utf-8"
-    ) as phonetics_file:
-        phonetics = json.load(phonetics_file)
+        notes = {
+            id: create_hanzi_note(
+                config,
+                id,
+                hanzi_models,
+                set(japanese_note_ids),
+                converter,
+                phonetics,
+            )
+            for id in note_ids
+        }
 
-    search_string = mw.col.build_search_string(
-        config.search_query,
-        mw.col.group_searches(
-            *[SearchNode(parsable_text=f"mid:{id}") for id in hanzi_models.keys()],
-            joiner="OR",
-        ),
-    )
-
-    japanese_search_string = (
-        mw.col.build_search_string(
-            search_string,
-            config.japanese_search_query,
+        hanzi_web = create_hanzi_web(notes.values(), lambda x: set(x.hanzi))
+        phonetic_series_web = create_hanzi_web(
+            notes.values(),
+            lambda x: {p for s in x.phonetic_series for p in s},
         )
-        if config.japanese_search_query
-        else "N/A"
-    )
-
-    japanese_note_ids = (
-        set(mw.col.find_notes(japanese_search_string))
-        if config.japanese_search_query
-        else set()
-    )
-
-    notes = {
-        id: create_hanzi_note(
-            config,
-            id,
-            hanzi_models,
-            japanese_note_ids,
-            converter,
-            phonetics,
+        self.notes_to_update = get_notes_to_update(
+            config, notes.values(), hanzi_web, phonetic_series_web, onyomi
         )
-        for id in mw.col.find_notes(search_string)
-    }
 
-    hanzi_web = create_hanzi_web(notes.values(), lambda x: set(x.hanzi))
-    phonetic_series_web = create_hanzi_web(
-        notes.values(),
-        lambda x: {p for s in x.phonetic_series for p in s},
-    )
-    notes_to_update = get_notes_to_update(
-        config, notes.values(), hanzi_web, phonetic_series_web, onyomi
-    )
-
-    if is_interactive:
         # Summarize the operation to the user.
-        report = generate_report(
+        self.report = generate_report(
             config,
-            search_string,
-            japanese_search_string,
-            hanzi_models,
-            notes_to_update,
+            self.notes_to_update,
             hanzi_web,
             phonetic_series_web,
         )
-        if not show_report(report):
-            return
 
-    apply_changes(config, notes_to_update, is_interactive)
+    @property
+    def is_empty(self) -> bool:
+        return not self.notes_to_update
 
+    def apply(self) -> Optional[str]:
+        if not self.notes_to_update:
+            return None
 
-def maybe_update_from_gui() -> None:
-    config = Config(assert_is_not_none(mw.addonManager.getConfig(__name__)))
-    if config.config_version < CONFIG_VERSION:
-        show_update_nag()
-    else:
-        update(config, is_interactive=True)
-
-
-def maybe_update_from_hook() -> None:
-    config = Config(assert_is_not_none(mw.addonManager.getConfig(__name__)))
-    if config.config_version >= CONFIG_VERSION and config.auto_run_on_sync:
-        update(config, is_interactive=False)
-
-
-def init() -> None:
-    menu = QMenu("Hanzi &Web", mw)
-    update_action = QAction("&Update notes", menu)
-    about_action = QAction("&About...", menu)
-    update_action.setShortcut("Ctrl+W")
-    menu.addAction(update_action)
-    menu.addAction(about_action)
-    qconnect(update_action.triggered, maybe_update_from_gui)
-    qconnect(about_action.triggered, lambda: showInfo(ABOUT_TEXT))
-    mw.form.menuTools.addMenu(menu)
-
-    gui_hooks.sync_will_start.append(maybe_update_from_hook)
-    gui_hooks.sync_did_finish.append(maybe_update_from_hook)
+        for hanzi_note, entries in self.notes_to_update:
+            note = mw.col.get_note(hanzi_note.id)
+            note[self.config.web_field] = entries
+            note.flush()
+        return f"Hanzi Web: {len(self.notes_to_update)} notes updated."

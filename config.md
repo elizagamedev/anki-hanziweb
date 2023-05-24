@@ -32,12 +32,22 @@ Please see the README for a comprehensive explanation.
 
 See the [Anki manual on
 Searching](https://docs.ankiweb.net/searching.html#tags-decks-cards-and-notes).
-See also the `kyujitai_fields_regexp` and the `shinjitai_fields_regexp` configuration options.
+See also the `kyujitai_field` configuration option.
 
 For example, to select only decks that contain the word “Japanese”:
 `"deck:*Japanese*"`. To select all of your notes, `"deck:*"`.
 
 Default: `""`.
+
+### `kyujitai_field`
+For each Japanese note, its corresponding `kyujitai_field` will be updated with
+the values of the fields matching `hanzi_fields_regexp`, converted to kyūjitai,
+each time Hanzi Web is run. (It is assumed that `hanzi_fields_regexp` generally
+will contain shinjitai forms.)
+
+See also the `japanese_search_query` configuration option.
+
+Default: `"Kyujitai"`.
 
 ### `max_terms_per_hanzi`
 This limits the list of terms to the N most recently reviewed notes. Set this to

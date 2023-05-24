@@ -1,7 +1,7 @@
 import re
 import unicodedata
 from re import Pattern
-from typing import Any, Optional
+from typing import Any, Optional, Protocol
 
 from anki.config import Config as AnkiConfig
 from aqt import mw as mw_optional
@@ -36,8 +36,7 @@ class Config:
     search_query: str
     term_separator: str
     web_field: str
-    kyujitai_fields_regexp: Pattern[Any]
-    shinjitai_fields_regexp: Pattern[Any]
+    kyujitai_field: str
     japanese_search_query: str
     auto_run_on_sync: bool
 
@@ -65,18 +64,16 @@ class Config:
 
         self.web_field = config.get("web_field") or "HanziWeb"
 
-        self.kyujitai_fields_regexp = re.compile(
-            config.get("kyujitai_fields_regexp") or "Kyujitai"
-        )
-
-        self.shinjitai_fields_regexp = re.compile(
-            config.get("shinjitai_fields_regexp") or "Expression"
-        )
+        self.kyujitai_field = config.get("kyujitai_field") or "Kyujitai"
 
         self.japanese_search_query = config.get("japanese_search_query") or ""
 
         auto_run_on_sync = config.get("auto_run_on_sync")
         self.auto_run_on_sync = False if auto_run_on_sync is None else auto_run_on_sync
+
+
+def load_config() -> Config:
+    return Config(assert_is_not_none(mw.addonManager.getConfig(__name__)))
 
 
 def normalize_unicode(string: str) -> str:
@@ -138,3 +135,14 @@ def html_tag(
     if properties:
         return f"<{tag} {properties}>{content}</{tag}>"
     return f"<{tag}>{content}</{tag}>"
+
+
+class SupportsPendingChanges(Protocol):
+    report: str
+
+    @property
+    def is_empty(self) -> bool:
+        pass
+
+    def apply(self) -> Optional[str]:
+        pass
