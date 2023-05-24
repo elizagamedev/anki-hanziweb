@@ -13,38 +13,68 @@ it from the GitHub releases page, then install in Anki via `Tools -> Add-ons ->
 Install from file…`
 
 ## Configuration
+**Note that Hanzi Web has changed significantly from v0.1.3 to v1.0.0.** If you
+are getting nagged that your config is out of date, please re-read this section
+and then update your `config_version` to `1`.
+
 You can configure Hanzi Web through Anki after installing via `Tools -> Add-ons
 -> Hanzi Web -> Config`. See [config.md](config.md).
 
 You may want to also configure the CSS of your notes, as Hanzi Web does no
-styling by default. It instead exposes three CSS classes:
+styling by default. It instead exposes the following CSS classes:
 
-- `ol.hanziewb`, applied to the `<ol>` which contains each entry.
-- `span.hanziweb-hanzi`, which is the hanzi for which terms are listed (the left
+- `.hanziweb`, applied to the whole `<table>`.
+- `.hanziweb-hanzi`, which is the hanzi for which terms are listed (the left
   side of the screenshot shown above).
-- `span.hanziweb-terms`, which contains the entire list of terms (the right side
-  of the screenshot shown above).
+- `.hanziweb-kind`, which is applied to the `<td>` for the indicator for the "kind" of row.
+  This is 聲 for Chinese phonetic series (as in 諧聲) and 音 for Japanese
+  on'yomi readings (as in 音読). For the row containing the hanzi itself,
+  this is blank.
+- `.hanziweb-terms`, `.hanziweb-phonetic-series`, and `.hanziweb-onyomi`, which
+  is applied to the `<td>` for the list of terms for each of the corresponding
+  categories. This is the right-hand side of the table.
 
 The styling in the above screenshot was achieved with the following CSS. You may
 copy it into your note type’s CSS if you wish.
 
 ``` css
-ol.hanziweb {
-  list-style-type: none;
+.hanziweb {
   margin: 10px auto;
-  font-size: 20px;
   max-width: 400px;
   border-style: solid;
   border-color: gray;
   border-width: 1px;
-  padding: 5px 10px 5px 10px;
+  border-collapse: collapse;
+}
+
+.hanziweb td {
+  border-style: solid;
+  border-color: gray;
+  border-width: 1px;
+  padding: 5px;
 }
 
 .hanziweb-hanzi {
-  font-weight: bold;
-  margin-right: 20px;
+  font-family: IPAMincho, serif;
+  text-align: center;
   font-size: 30px;
-  font-family: serif;
+  margin: 5px;
+}
+
+.hanziweb-kind {
+  font-size: 20px;
+  text-align: right;
+}
+
+.hanziweb-terms {
+  font-size: 20px;
+  text-align: left;
+  word-break: keep-all;
+}
+
+.hanziweb-phonetic-series,
+.hanziweb-onyomi {
+  color: gray;
 }
 ```
 
@@ -73,7 +103,6 @@ each.
   generally helpful when learning Japanese), but rather to be able to have
   broader coverage when looking up Japanese words in Chinese dictionaries, for
   example, the [Outlier Dictionary of Chinese Characters](https://www.outlier-linguistics.com/products/outlier-dictionary-of-chinese-characters) in Pleco.
-
 
 ## Usage
 Ensure that the note types of the notes you want to add web entries to have a
