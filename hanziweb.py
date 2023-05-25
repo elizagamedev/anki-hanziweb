@@ -1,6 +1,4 @@
-import json
 from dataclasses import dataclass
-from pathlib import PurePath
 from re import Pattern
 from typing import Any, Callable, Iterable, Optional, Sequence
 
@@ -11,6 +9,7 @@ from .common import (
     HANZI_REGEXP,
     Config,
     assert_is_not_none,
+    get_lazy_data,
     html_tag,
     mw,
     normalize_unicode,
@@ -300,17 +299,7 @@ class PendingChanges:
 
         converter = BasicConverter()  # type: ignore
 
-        addon_directory = PurePath(__file__).parent
-
-        with open(
-            addon_directory / "kanji-onyomi.json", "r", encoding="utf-8"
-        ) as onyomi_file:
-            onyomi = json.load(onyomi_file)
-
-        with open(
-            addon_directory / "phonetics.json", "r", encoding="utf-8"
-        ) as phonetics_file:
-            phonetics = json.load(phonetics_file)
+        lazy_data = get_lazy_data()
 
         notes = {
             id: create_hanzi_note(
@@ -319,7 +308,7 @@ class PendingChanges:
                 hanzi_models,
                 set(japanese_note_ids),
                 converter,
-                phonetics,
+                lazy_data.phonetics,
             )
             for id in note_ids
         }
@@ -330,7 +319,7 @@ class PendingChanges:
             lambda x: {p for s in x.phonetic_series for p in s},
         )
         self.notes_to_update = get_notes_to_update(
-            config, notes.values(), hanzi_web, phonetic_series_web, onyomi
+            config, notes.values(), hanzi_web, phonetic_series_web, lazy_data.onyomi
         )
 
         # Summarize the operation to the user.

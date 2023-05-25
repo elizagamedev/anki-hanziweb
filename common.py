@@ -1,5 +1,7 @@
+import json
 import re
 import unicodedata
+from pathlib import PurePath
 from re import Pattern
 from typing import Any, Optional, Protocol
 
@@ -74,6 +76,37 @@ class Config:
 
 def load_config() -> Config:
     return Config(assert_is_not_none(mw.addonManager.getConfig(__name__)))
+
+
+class LazyData:
+    onyomi: dict[str, list[str]]
+    phonetics: dict[str, str]
+
+    def __init__(self, onyomi: dict[str, list[str]], phonetics: dict[str, str]):
+        self.onyomi = onyomi
+        self.phonetics = phonetics
+
+
+_lazy_data: Optional[LazyData] = None
+
+
+def get_lazy_data() -> LazyData:
+    global _lazy_data
+    if not _lazy_data:
+        addon_directory = PurePath(__file__).parent
+
+        with open(
+            addon_directory / "kanji-onyomi.json", "r", encoding="utf-8"
+        ) as onyomi_file:
+            onyomi = json.load(onyomi_file)
+
+        with open(
+            addon_directory / "phonetics.json", "r", encoding="utf-8"
+        ) as phonetics_file:
+            phonetics = json.load(phonetics_file)
+
+        _lazy_data = LazyData(onyomi, phonetics)
+    return _lazy_data
 
 
 def normalize_unicode(string: str) -> str:
