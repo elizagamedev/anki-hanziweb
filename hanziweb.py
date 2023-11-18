@@ -152,7 +152,7 @@ def create_hanzi_web(
     web = {
         hanzi: sorted(
             note_set,
-            key=lambda x: -x.latest_review,
+            key=lambda x: (-x.latest_review, x.id),
         )
         for (hanzi, note_set) in hanzi_sets.items()
     }
