@@ -79,11 +79,18 @@ def load_config() -> Config:
 
 
 class LazyData:
-    onyomi: dict[str, list[str]]
+    onyomi: dict[str, list[(str, list[str])]]
     phonetics: dict[str, str]
 
-    def __init__(self, onyomi: dict[str, list[str]], phonetics: dict[str, str]):
-        self.onyomi = onyomi
+    def __init__(
+        self,
+        onyomi: dict[str, list[list[str]]],
+        phonetics: dict[str, str],
+    ):
+        self.onyomi = {
+            kanji: [(readings[0], readings[1:]) for readings in all_readings]
+            for kanji, all_readings in onyomi.items()
+        }
         self.phonetics = phonetics
 
 

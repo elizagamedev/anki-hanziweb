@@ -177,7 +177,7 @@ def get_notes_to_update(
     notes: Iterable[HanziNote],
     hanzi_web: HanziWeb,
     phonetic_series_web: HanziWeb,
-    onyomi: dict[str, list[str]],
+    onyomi: dict[str, list[(str, list[str])]],
 ) -> list[tuple[HanziNote, str]]:
     def build_phonetic_series_entry_line(hanzi_note: HanziNote, component: str) -> str:
         entry = phonetic_series_web.entry(
@@ -198,6 +198,8 @@ def get_notes_to_update(
         for hanzi, phonetic_components in zip(
             hanzi_note.hanzi, hanzi_note.phonetic_series
         ):
+            this_onyomi = (onyomi.get(hanzi) or []) if hanzi_note.is_japanese else []
+
             same_terms_td_text = hanzi_web.entry(
                 config, hanzi, lambda x: x != hanzi_note
             )
@@ -212,10 +214,7 @@ def get_notes_to_update(
             all_terms_td_text = [
                 same_terms_td_text,
                 phonetic_series_terms_td_text,
-                config.term_separator.join(onyomi.get(hanzi) or [])
-                if hanzi_note.is_japanese
-                else "",
-            ]
+            ] + [config.term_separator.join(readings) for (_, readings) in this_onyomi]
 
             rowspan = len([x for x in all_terms_td_text if x])
 
@@ -233,8 +232,9 @@ def get_notes_to_update(
                 continue
 
             for clazz, kind_td_text, terms_td_text in zip(
-                ["hanziweb-same", "hanziweb-phonetic-series", "hanziweb-onyomi"],
-                ["", "聲", "音"],
+                ["hanziweb-same", "hanziweb-phonetic-series"]
+                + ["hanziweb-onyomi"] * len(this_onyomi),
+                ["", "諧聲"] + [kind for (kind, _) in this_onyomi],
                 all_terms_td_text,
             ):
                 if not terms_td_text:

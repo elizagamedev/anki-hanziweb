@@ -8,7 +8,8 @@ hanzi if you are reminded of other words it comprises that you’ve already
 studied.
 
 ## Installation
-You may install this from its [Anki Web page](https://ankiweb.net/shared/info/125468335). You may alternatively download
+You may install this from its [Anki Web
+page](https://ankiweb.net/shared/info/125468335). You may alternatively download
 it from the GitHub releases page, then install in Anki via `Tools -> Add-ons ->
 Install from file…`
 
@@ -75,6 +76,17 @@ copy it into your note type’s CSS if you wish.
 .hanziweb-phonetic-series,
 .hanziweb-onyomi {
   color: gray;
+  word-break: keep-all;
+}
+```
+
+You can specify `display: none;` on `.hanziweb-phonetic-series` or
+`.hanziweb-onyomi` if you don’t wish to see either. For example, to disable
+displaying on’yomi:
+
+```css
+.hanziweb-onyomi {
+  display: none;
 }
 ```
 
@@ -88,10 +100,15 @@ each.
 
 - Characters are used as-is to look up phonetic series. In the future,
   simplified characters will be converted to traditional characters.
-- Japanese on'yomi readings are omitted.
+- Japanese on’yomi readings are omitted.
 
 ### Japanese
 
+- On’yomi are included in entries, and further differentiated into go’on,
+  kan’on, etc. This data is derived from [MarvNC’s Wiktionary Yomichan
+  dictionary](https://github.com/MarvNC/yomichan-dictionaries#wiktionary-kanji),
+  which in turn is derived from Wiktionary. There may be errors from parsing or
+  from incorrect source information. (NOTE: Unreleased feature!)
 - When looking up the phonetic series, shinjitai characters will be converted to
   kyūjitai. This is done because the included database of phonetic series is
   based on traditional Chinese, which more closely matches kyūjitai variants.
@@ -120,3 +137,8 @@ Click “Apply” and your notes’ “HanziWeb” fields will be filled!
 
 Alternatively, you can set `auto_run_on_sync` to `true` to automatically run
 Hanzi Web before and after each sync operation.
+
+## Copyright
+This addon uses data from Wiktionary for both the phonetic series and on’yomi.
+Please view Wiktionary’s copyright information
+[here](https://en.wiktionary.org/wiki/Wiktionary:Copyrights).
