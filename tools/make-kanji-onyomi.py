@@ -1,8 +1,7 @@
-from itertools import chain
+from typing import Any, Iterable
 import json
-import sys
-from typing import Optional
 import re
+import sys
 
 
 def gather_readings(kanji: str, definition: list[str]) -> dict[str, list[str]]:
@@ -21,7 +20,7 @@ def gather_readings(kanji: str, definition: list[str]) -> dict[str, list[str]]:
     except StopIteration:
         return {}
 
-    result: dict[str, dict[str, list[str]]] = {}
+    result: dict[str, list[str]] = {}
     for it in definition[onyomi_index:]:
         if it.startswith("ー") or it.startswith("＝") or "訓読" in it or it == "無し":
             break
@@ -29,25 +28,25 @@ def gather_readings(kanji: str, definition: list[str]) -> dict[str, list[str]]:
         split = re.split(r"\s*[：:]\s*", it, maxsplit=2)
         if len(split) == 1:
             # unspecified
-            kinds = "音読み"
-            readings = split[0]
+            kinds_str = "音読み"
+            readings_str = split[0]
         elif len(split) == 2:
-            kinds, readings = split
+            kinds_str, readings_str = split
         else:
             # shouldn't happen, but...
             continue
 
         # Separate and clean up kinds.
-        kinds = re.split(r"\s*[,、・\s]\s*", kinds)
+        kinds = re.split(r"\s*[,、・\s]\s*", kinds_str)
         if kanji == "谷":
             kinds = ["慣用音" if kind == "特殊な慣用音" else kind for kind in kinds]
         if not kinds:
             continue
 
         # Separate and clean up readings.
-        if not readings:
+        if not readings_str:
             continue
-        readings = re.split(r"\s*[,、\s]\s*", readings)
+        readings = re.split(r"\s*[,、\s]\s*", readings_str)
         readings = [reading for reading in readings if re.match(r"^[ァ-ヾ]", reading)]
         readings = [reading.replace("(", "（") for reading in readings]
         readings = [reading.replace(")", "）") for reading in readings]
@@ -94,18 +93,40 @@ def sort_readings(
     return result
 
 
+# I can't believe this function didn't exist until 3.12 :\
+def batched_compat(lst: list[Any], n: int) -> Iterable[Iterable[Any]]:
+    for i in range(0, len(lst), n):
+        yield lst[i : i + n]
+
+
 def generate_onyomi_by_kanji(
-    entries: list[list[any]],
+    entries: list[list[Any]],
+    kanjidic: dict[str, list[str]],
 ) -> dict[str, list[list[str]]]:
-    result: dict[str, dict[str, list[str]]] = {}
+    result: dict[str, list[list[str]]] = {}
+    missing: set[str] = set()
     for kanji, _, _, _, definition, _ in entries:
         if readings := gather_readings(kanji, definition):
             result[kanji] = sort_readings(kanji, readings)
+        elif backup_readings := kanjidic.get(kanji):
+            missing.add(kanji)
+            result[kanji] = [["音読み"] + backup_readings]
+    print(
+        f"Missing detailed on'yomi information for the following kanji:",
+        file=sys.stderr,
+    )
+    for it in batched_compat(sorted(missing), 60):
+        print(f"  {''.join(it)}", file=sys.stderr)
     return result
 
 
+with open(sys.argv[1], encoding="utf-8") as fp:
+    kanji_bank = json.load(fp)
+with open(sys.argv[2], encoding="utf-8") as fp:
+    kanji_dic = json.load(fp)
+
 json.dump(
-    generate_onyomi_by_kanji(json.load(sys.stdin)),
+    generate_onyomi_by_kanji(kanji_bank, kanji_dic),
     sys.stdout,
     ensure_ascii=False,
     separators=(",", ":"),

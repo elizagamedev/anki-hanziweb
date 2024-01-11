@@ -1,4 +1,5 @@
 ZIP		?= zip
+KANJIDIC	?= kanjidic2.xml
 KANJI_BANK	?= kanji_bank_1.json
 
 NAME		:= hanziweb
@@ -19,7 +20,7 @@ DEPS		:= __init__.py \
 		   phonetics.json
 
 all: 	$(ANKIADDON)
-clean:	; rm -rf *.ankiaddon __pycache__ README.html kanji-onyomi.json phonetics.json
+clean:	; rm -rf *.ankiaddon __pycache__ README.html kanji-onyomi.json kanjidic-onyomi.json phonetics.json
 .PHONY: all clean format
 .DELETE_ON_ERROR:
 
@@ -27,11 +28,14 @@ format:
 	isort *.py
 	black *.py
 
-kanji-onyomi.json: tools/make-kanji-onyomi.py $(KANJI_BANK)
-	python3 tools/make-kanji-onyomi.py < $(KANJI_BANK) > kanji-onyomi.json
+kanjidic-onyomi.json: tools/make-kanji-onyomi.sh $(KANJIDIC)
+	tools/make-kanji-onyomi.sh $(KANJIDIC) $@
+
+kanji-onyomi.json: tools/make-kanji-onyomi.py $(KANJI_BANK) kanjidic-onyomi.json
+	python3 tools/make-kanji-onyomi.py $(KANJI_BANK) kanjidic-onyomi.json > $@
 
 phonetics.json: tools/make-phonetics.py
-	python3 tools/make-phonetics.py > phonetics.json
+	python3 tools/make-phonetics.py > $@
 
 $(ANKIADDON): $(DEPS)
 	rm -f $@
