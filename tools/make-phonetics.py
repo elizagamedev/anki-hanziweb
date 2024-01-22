@@ -1089,8 +1089,8 @@ KOKUJI_PHONETIC_SERIES_BY_COMPONENT = {
 }
 
 
-def generate_components_by_phonetic_series() -> dict[str, set[str]]:
-    result: dict[str, set[str]] = {}
+def generate_components_by_phonetic_series() -> dict[str, str]:
+    result: dict[str, str] = {}
     for phonetic_series_hanzi, all_hanzi in chain(
         OLD_CHINESE_PHONETIC_SERIES_BY_COMPONENT.items(),
         KOKUJI_PHONETIC_SERIES_BY_COMPONENT.items(),
@@ -1105,4 +1105,9 @@ def generate_components_by_phonetic_series() -> dict[str, set[str]]:
     return result
 
 
-json.dump(generate_components_by_phonetic_series(), sys.stdout, ensure_ascii=False)
+json.dump(
+    generate_components_by_phonetic_series(),
+    sys.stdout,
+    ensure_ascii=False,
+    separators=(",", ":"),
+)

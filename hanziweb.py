@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from re import Pattern
-from typing import Any, Callable, Iterable, Optional, Sequence
+from typing import Any, Callable, Iterable, Optional, Sequence, Tuple
 
 from anki.models import NotetypeId, NotetypeNameId
 from anki.notes import NoteId
@@ -47,7 +47,7 @@ class HanziNote:
     terms: Sequence[str]
     web_field: Optional[str]
     hanzi: Sequence[str]
-    phonetic_series: Sequence[set[str]]
+    phonetic_series: Sequence[str]
     latest_review: int
     is_japanese: bool
 
@@ -58,7 +58,7 @@ def create_hanzi_note(
     hanzi_models: dict[NotetypeId, HanziModel],
     japanese_note_ids: set[NoteId],
     converter: BasicConverter,
-    components_by_phonetic_series: dict[str, set[str]],
+    components_by_phonetic_series: dict[str, str],
 ) -> HanziNote:
     note = mw.col.get_note(id)
 
@@ -78,7 +78,7 @@ def create_hanzi_note(
         components_by_phonetic_series.get(
             converter.shinjitai_to_kyujitai(h) if is_japanese else h  # type: ignore
         )
-        or set()
+        or ""
         for h in hanzi
     ]
 
@@ -177,7 +177,7 @@ def get_notes_to_update(
     notes: Iterable[HanziNote],
     hanzi_web: HanziWeb,
     phonetic_series_web: HanziWeb,
-    onyomi: dict[str, list[(str, list[str])]],
+    onyomi: dict[str, list[Tuple[str, list[str]]]],
 ) -> list[tuple[HanziNote, str]]:
     def build_phonetic_series_entry_line(hanzi_note: HanziNote, component: str) -> str:
         entry = phonetic_series_web.entry(
@@ -286,7 +286,7 @@ def generate_report(
 class PendingChanges:
     config: Config
     report: str
-    notes_to_update: Sequence[tuple[HanziNote, str]]
+    notes_to_update: Sequence[Tuple[HanziNote, str]]
 
     def __init__(
         self,

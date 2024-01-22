@@ -3,7 +3,7 @@ import re
 import unicodedata
 from pathlib import PurePath
 from re import Pattern
-from typing import Any, Optional, Protocol
+from typing import Any, Optional, Protocol, Tuple
 
 from anki.config import Config as AnkiConfig
 from aqt import mw as mw_optional
@@ -79,7 +79,7 @@ def load_config() -> Config:
 
 
 class LazyData:
-    onyomi: dict[str, list[(str, list[str])]]
+    onyomi: dict[str, list[Tuple[str, list[str]]]]
     phonetics: dict[str, str]
 
     def __init__(
