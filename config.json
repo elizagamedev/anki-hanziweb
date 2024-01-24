@@ -1,6 +1,7 @@
 {
   "auto_run_on_sync": false,
   "config_version": 1,
+  "days_to_update": 0,
   "hanzi_fields_regexp": "Expression",
   "japanese_search_query": "",
   "kyujitai_field": "Kyujitai",

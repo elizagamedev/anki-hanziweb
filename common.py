@@ -32,15 +32,16 @@ HANZI_REGEXP = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 
 
 class Config:
+    auto_run_on_sync: bool
     config_version: int
+    days_to_update: int
     hanzi_fields_regexp: Optional[Pattern[Any]]
+    japanese_search_query: str
+    kyujitai_field: str
     max_terms_per_hanzi: int
     search_query: str
     term_separator: str
     web_field: str
-    kyujitai_field: str
-    japanese_search_query: str
-    auto_run_on_sync: bool
 
     def __init__(self, config: dict[str, Any]):
         self.config_version = config.get("config_version") or 0
@@ -49,6 +50,8 @@ class Config:
                 f"`config_version' {self.config_version} too new "
                 f"(expecting <= {CONFIG_VERSION})"
             )
+
+        self.days_to_update = config.get("days_to_update") or 0
 
         hanzi_fields_regexp = config.get("hanzi_fields_regexp")
         self.hanzi_fields_regexp = (

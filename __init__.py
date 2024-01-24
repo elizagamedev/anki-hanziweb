@@ -2,6 +2,7 @@ from anki.collection import SearchNode
 from aqt import gui_hooks
 from aqt.qt import QAction, QMenu  # type: ignore
 from aqt.utils import qconnect, showInfo, tooltip
+from itertools import islice
 
 from .common import (
     CONFIG_VERSION,
@@ -16,6 +17,11 @@ from .common import (
 from .hanziweb import PendingChanges as PendingHanziWebChanges
 from .hanziweb import get_hanzi_models
 from .jitai import PendingChanges as PendingJitaiChanges
+from anki.notes import NoteId
+from anki.decks import DeckId
+from typing import Sequence
+from pprint import pprint
+from anki.consts import NEW_CARDS_DUE
 
 GPL = (
     "This program is free software: you can redistribute it and/or modify it "
@@ -39,7 +45,7 @@ ABOUT_TEXT = (
 def update(config: Config, is_interactive: bool) -> None:
     hanzi_models = get_hanzi_models(config)
 
-    search_string = mw.col.build_search_string(
+    base_search_string = mw.col.build_search_string(
         config.search_query,
         mw.col.group_searches(
             *[SearchNode(parsable_text=f"mid:{id}") for id in hanzi_models.keys()],
@@ -47,32 +53,53 @@ def update(config: Config, is_interactive: bool) -> None:
         ),
     )
 
+    source_search_string = mw.col.build_search_string(
+        base_search_string,
+        SearchNode(parsable_text=f"-is:new"),
+    )
+
     japanese_search_string = (
         mw.col.build_search_string(
-            search_string,
+            base_search_string,
             config.japanese_search_query,
         )
         if config.japanese_search_query
         else "N/A"
     )
 
-    note_ids = mw.col.find_notes(search_string)
+    source_note_ids = set(mw.col.find_notes(source_search_string))
+
+    destination_note_ids = (
+        get_next_n_days_of_note_ids(base_search_string, config.days_to_update)
+        if config.days_to_update > 0
+        else None
+    )
 
     japanese_note_ids = (
-        mw.col.find_notes(japanese_search_string)
+        set(mw.col.find_notes(japanese_search_string))
         if config.japanese_search_query
-        else []
+        else set()
     )
 
     pending_changes: list[SupportsPendingChanges] = [
-        PendingHanziWebChanges(config, note_ids, japanese_note_ids, hanzi_models),
-        PendingJitaiChanges(config, japanese_note_ids),
+        PendingHanziWebChanges(
+            config,
+            source_note_ids,
+            destination_note_ids,
+            japanese_note_ids,
+            hanzi_models,
+        ),
+        PendingJitaiChanges(
+            config,
+            destination_note_ids,
+            japanese_note_ids,
+        ),
     ]
 
     report = [
         "Hanzi Web will update the following notes. Please ensure this ",
         "looks correct before continuing.\n\n",
-        f"Search query:\n  {search_string}\n",
+        f"Search query:\n  {base_search_string}\n",
         f"Japanese search query:\n  {japanese_search_string}\n",
         "Note types:\n",
     ]
@@ -104,6 +131,50 @@ def update(config: Config, is_interactive: bool) -> None:
     else:
         if is_interactive:
             tooltip("No changes.", parent=mw)
+
+
+def get_next_n_days_of_note_ids(
+    search_query: str,
+    days_to_update: int,
+) -> set[NoteId]:
+    # Start the result with all notes due for review within the next N days.
+    next_n_days_search_string = mw.col.build_search_string(
+        search_query,
+        SearchNode(parsable_text=f"prop:due<={days_to_update}"),
+    )
+    next_n_days_note_ids = set(mw.col.find_notes(next_n_days_search_string))
+
+    # For each deck, find the next N days worth of new notes and add them.
+    for deck in mw.col.decks.get_all_legacy():
+        config = mw.col.decks.config_dict_for_deck_id(DeckId(deck["id"]))
+
+        new_cards_search_string = mw.col.build_search_string(
+            search_query,
+            SearchNode(parsable_text=f"is:new"),
+            SearchNode(deck=deck["name"]),
+        )
+
+        if config["new"]["order"] == NEW_CARDS_DUE:
+            # Add any outstanding new cards today plus the next N days' worth.
+            new_note_ids = mw.col.find_notes(
+                new_cards_search_string,
+                order="c.due asc, c.id asc",
+            )
+
+            new_cards_per_day = config["new"]["perDay"]
+            remaining_cards_today = new_cards_per_day - deck["newToday"][1]
+            total_cards_to_update = (
+                remaining_cards_today + new_cards_per_day * days_to_update
+            )
+
+            next_n_days_note_ids.update(islice(new_note_ids, total_cards_to_update))
+        else:
+            # If the cards are pulled in randomly, we can't guess the next N to appear,
+            # so include them all.
+            new_note_ids = mw.col.find_notes(new_cards_search_string)
+            next_n_days_note_ids.update(new_note_ids)
+
+    return next_n_days_note_ids
 
 
 def maybe_update_from_gui() -> None:

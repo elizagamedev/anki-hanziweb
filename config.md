@@ -13,6 +13,13 @@ update this value to `1`.
 
 Default: `1`.
 
+### `days_to_update`
+If set to a value other than `0`, only the notes due within the next N days
+(both new cards and reviews) will be updated. This can significantly improve the
+speed at which Hanzi Web runs and improves AnkiWeb sync times.
+
+Default: `0`.
+
 ### `hanzi_fields_regexp`
 If a note is considered by Hanzi Web, any hanzi/kanji contained in fields whose
 names *completely* match this case-sensitive regular expression are used as
@@ -53,7 +60,7 @@ Default: `"Kyujitai"`.
 This limits the list of terms to the N most recently reviewed notes. Set this to
 `0` to remove the limit.
 
-Default: `"5"`.
+Default: `5`.
 
 ### `search_query`
 Only notes will be considered which match this search query. If empty, this

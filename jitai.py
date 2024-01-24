@@ -86,7 +86,18 @@ class PendingChanges:
     report: str
     notes: list[tuple[JitaiNote, str]]
 
-    def __init__(self, config: Config, note_ids: Sequence[NoteId]):
+    def __init__(
+        self,
+        config: Config,
+        destination_note_ids: Optional[set[NoteId]],
+        japanese_note_ids: set[NoteId],
+    ):
+        note_ids = (
+            japanese_note_ids
+            if destination_note_ids is None
+            else japanese_note_ids.intersection(japanese_note_ids)
+        )
+
         self.config = config
         converter = KyujitaiConverter()  # type: ignore
 

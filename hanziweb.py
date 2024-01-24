@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from re import Pattern
-from typing import Any, Callable, Iterable, Optional, Sequence, Tuple
+from typing import Any, Callable, Iterable, Optional, Sequence, Collection, Tuple
 
 from anki.models import NotetypeId, NotetypeNameId
 from anki.notes import NoteId
@@ -174,7 +174,8 @@ def get_hanzi_models(config: Config) -> dict[NotetypeId, HanziModel]:
 
 def get_notes_to_update(
     config: Config,
-    notes: Iterable[HanziNote],
+    notes: dict[NoteId, HanziNote],
+    destination_note_ids: Optional[set[NoteId]],
     hanzi_web: HanziWeb,
     phonetic_series_web: HanziWeb,
     onyomi: dict[str, list[Tuple[str, list[str]]]],
@@ -191,7 +192,15 @@ def get_notes_to_update(
             return ""
         return f"{component}：{entry}"
 
-    notes_to_maybe_update = [note for note in notes if note.model.has_web_field]
+    notes_to_maybe_update = [
+        note
+        for note in (
+            notes.values()
+            if destination_note_ids is None
+            else [notes[note_id] for note_id in destination_note_ids]
+        )
+        if note.model.has_web_field
+    ]
     notes_to_update = []
     for hanzi_note in notes_to_maybe_update:
         entries: list[str] = []
@@ -291,8 +300,9 @@ class PendingChanges:
     def __init__(
         self,
         config: Config,
-        note_ids: Sequence[NoteId],
-        japanese_note_ids: Sequence[NoteId],
+        source_note_ids: set[NoteId],
+        destination_note_ids: Optional[set[NoteId]],
+        japanese_note_ids: set[NoteId],
         hanzi_models: dict[NotetypeId, HanziModel],
     ):
         self.config = config
@@ -306,11 +316,15 @@ class PendingChanges:
                 config,
                 id,
                 hanzi_models,
-                set(japanese_note_ids),
+                japanese_note_ids,
                 converter,
                 lazy_data.phonetics,
             )
-            for id in note_ids
+            for id in (
+                source_note_ids
+                if destination_note_ids is None
+                else source_note_ids.union(destination_note_ids)
+            )
         }
 
         hanzi_web = create_hanzi_web(notes.values(), lambda x: set(x.hanzi))
@@ -319,7 +333,12 @@ class PendingChanges:
             lambda x: {p for s in x.phonetic_series for p in s},
         )
         self.notes_to_update = get_notes_to_update(
-            config, notes.values(), hanzi_web, phonetic_series_web, lazy_data.onyomi
+            config,
+            notes,
+            destination_note_ids,
+            hanzi_web,
+            phonetic_series_web,
+            lazy_data.onyomi,
         )
 
         # Summarize the operation to the user.
