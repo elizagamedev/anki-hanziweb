@@ -96,24 +96,24 @@ def update(config: Config, is_interactive: bool) -> None:
         ),
     ]
 
-    report = [
-        "Hanzi Web will update the following notes. Please ensure this ",
-        "looks correct before continuing.\n\n",
-        f"Search query:\n  {base_search_string}\n",
-        f"Japanese search query:\n  {japanese_search_string}\n",
-        "Note types:\n",
-    ]
+    if is_interactive:
+        report = [
+            "Hanzi Web will update the following notes. Please ensure this ",
+            "looks correct before continuing.\n\n",
+            f"Search query:\n  {base_search_string}\n",
+            f"Japanese search query:\n  {japanese_search_string}\n",
+            "Note types:\n",
+        ]
 
-    for model in hanzi_models.values():
-        fields = ", ".join(model.fields)
-        report.append(f"  {model.name} [{fields}]\n")
-    report.append("\n")
-
-    for change in pending_changes:
-        report.append(change.report)
+        for model in hanzi_models.values():
+            fields = ", ".join(model.fields)
+            report.append(f"  {model.name} [{fields}]\n")
         report.append("\n")
 
-    if is_interactive:
+        for change in pending_changes:
+            report.append(change.report)
+            report.append("\n")
+
         if not show_report("".join(report)):
             return
 
