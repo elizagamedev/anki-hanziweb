@@ -57,33 +57,9 @@ def create_jitai_note_from_id(
     return JitaiNote(id, model, from_value, note[model.to_field])
 
 
-def generate_report(
-    models: dict[NotetypeId, JitaiModel],
-    converted_notes: list[tuple[JitaiNote, str]],
-) -> str:
-    report = [
-        "== Shinjitai to kyūjitai conversion.\n\n",
-    ]
-    if models:
-        report.append(f"Note types ({len(models)}):\n")
-        for model in models.values():
-            report.append(f"  {model.name} [{model.from_field} -> {model.to_field}]\n")
-
-        if converted_notes:
-            report.append(f"\nNotes to update ({len(converted_notes)}):\n")
-            for note, to_value in converted_notes:
-                report.append(f"  {note.id} {note.from_value} -> {to_value}\n")
-        else:
-            report.append("\nNo notes to update.\n")
-    else:
-        report.append("No note types found which have shinjitai and kyūjitai fields.\n")
-
-    return "".join(report)
-
-
 class PendingChanges:
     config: Config
-    report: str
+    models: dict[NotetypeId, JitaiModel]
     notes: list[tuple[JitaiNote, str]]
 
     def __init__(
@@ -104,7 +80,7 @@ class PendingChanges:
         def convert(x: str) -> str:
             return str(converter.shinjitai_to_kyujitai(x))  # type: ignore
 
-        models = (
+        self.models = (
             {
                 model.id: model
                 for model in [
@@ -120,7 +96,7 @@ class PendingChanges:
         )
         notes = [
             note
-            for note in [create_jitai_note_from_id(id, models) for id in note_ids]
+            for note in [create_jitai_note_from_id(id, self.models) for id in note_ids]
             if note
         ]
         self.notes = [
@@ -129,11 +105,34 @@ class PendingChanges:
             if (conversion := convert(note.from_value)) != note.to_value
         ]
 
-        self.report = generate_report(models, self.notes)
-
     @property
     def is_empty(self) -> bool:
         return not self.notes
+
+    @property
+    def report(self) -> str:
+        report = [
+            "== Shinjitai to kyūjitai conversion.\n\n",
+        ]
+        if self.models:
+            report.append(f"Note types ({len(self.models)}):\n")
+            for model in self.models.values():
+                report.append(
+                    f"  {model.name} [{model.from_field} -> {model.to_field}]\n"
+                )
+
+            if self.notes:
+                report.append(f"\nNotes to update ({len(self.notes)}):\n")
+                for note, to_value in self.notes:
+                    report.append(f"  {note.id} {note.from_value} -> {to_value}\n")
+            else:
+                report.append("\nNo notes to update.\n")
+        else:
+            report.append(
+                "No note types found which have shinjitai and kyūjitai fields.\n"
+            )
+
+        return "".join(report)
 
     def apply(self) -> Optional[str]:
         if not self.notes:

@@ -267,35 +267,11 @@ def get_notes_to_update(
     return notes_to_update
 
 
-def generate_report(
-    config: Config,
-    notes_to_update: list[tuple[HanziNote, str]],
-    hanzi_web: HanziWeb,
-    phonetic_series_web: HanziWeb,
-) -> str:
-    def unique_hanzi(web: HanziWeb) -> str:
-        return f"{len(web.web)} seen, {web.total_hanzi} total"
-
-    report = [
-        f"== Hanzi Web.\n\n",
-        f"Unique hanzi: {unique_hanzi(hanzi_web)}\n",
-        f"Unique phonetic series: {unique_hanzi(phonetic_series_web)}\n",
-    ]
-    if notes_to_update:
-        report.append(
-            f"\nNotes to update [{config.web_field}] ({len(notes_to_update)}):\n"
-        )
-        for note, _ in notes_to_update:
-            report.append(f"  {note.id} {note.fields[0]}\n")
-    else:
-        report.append("\nAll notes already up to date.\n")
-    return "".join(report)
-
-
 class PendingChanges:
     config: Config
-    report: str
     notes_to_update: Sequence[Tuple[HanziNote, str]]
+    hanzi_web: HanziWeb
+    phonetic_series_web: HanziWeb
 
     def __init__(
         self,
@@ -327,8 +303,8 @@ class PendingChanges:
             )
         }
 
-        hanzi_web = create_hanzi_web(notes.values(), lambda x: set(x.hanzi))
-        phonetic_series_web = create_hanzi_web(
+        self.hanzi_web = create_hanzi_web(notes.values(), lambda x: set(x.hanzi))
+        self.phonetic_series_web = create_hanzi_web(
             notes.values(),
             lambda x: {p for s in x.phonetic_series for p in s},
         )
@@ -336,22 +312,34 @@ class PendingChanges:
             config,
             notes,
             destination_note_ids,
-            hanzi_web,
-            phonetic_series_web,
+            self.hanzi_web,
+            self.phonetic_series_web,
             lazy_data.onyomi,
-        )
-
-        # Summarize the operation to the user.
-        self.report = generate_report(
-            config,
-            self.notes_to_update,
-            hanzi_web,
-            phonetic_series_web,
         )
 
     @property
     def is_empty(self) -> bool:
         return not self.notes_to_update
+
+    @property
+    def report(self) -> str:
+        def unique_hanzi(web: HanziWeb) -> str:
+            return f"{len(web.web)} seen, {web.total_hanzi} total"
+
+        report = [
+            f"== Hanzi Web.\n\n",
+            f"Unique hanzi: {unique_hanzi(self.hanzi_web)}\n",
+            f"Unique phonetic series: {unique_hanzi(self.phonetic_series_web)}\n",
+        ]
+        if self.notes_to_update:
+            report.append(
+                f"\nNotes to update [{self.config.web_field}] ({len(self.notes_to_update)}):\n"
+            )
+            for note, _ in self.notes_to_update:
+                report.append(f"  {note.id} {note.fields[0]}\n")
+        else:
+            report.append("\nAll notes already up to date.\n")
+        return "".join(report)
 
     def apply(self) -> Optional[str]:
         if not self.notes_to_update:
