@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 - On'yomi are differentiated by go'on, kan'on, etc.
+- New configuration option `days_to_update` which, when set, updates only the
+  next N days worth of notes.
 
 ### Fixed
 - The sorting of cross-referenced notes is now stable, making web entries
