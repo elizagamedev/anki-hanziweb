@@ -108,7 +108,7 @@ each.
   kan’on, etc. This data is derived from [MarvNC’s Wiktionary Yomichan
   dictionary](https://github.com/MarvNC/yomichan-dictionaries#wiktionary-kanji),
   which in turn is derived from Wiktionary. There may be errors from parsing or
-  from incorrect source information. (NOTE: Unreleased feature!)
+  from incorrect source information.
 - When looking up the phonetic series, shinjitai characters will be converted to
   kyūjitai. This is done because the included database of phonetic series is
   based on traditional Chinese, which more closely matches kyūjitai variants.
