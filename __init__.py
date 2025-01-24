@@ -55,7 +55,7 @@ def update(config: Config, is_interactive: bool) -> None:
 
     source_search_string = mw.col.build_search_string(
         base_search_string,
-        SearchNode(parsable_text=f"-is:new"),
+        SearchNode(parsable_text=f"is:review"),
     )
 
     japanese_search_string = (
@@ -69,10 +69,8 @@ def update(config: Config, is_interactive: bool) -> None:
 
     source_note_ids = set(mw.col.find_notes(source_search_string))
 
-    destination_note_ids = (
-        get_next_n_days_of_note_ids(base_search_string, config.days_to_update)
-        if config.days_to_update > 0
-        else None
+    destination_note_ids = get_next_n_days_of_note_ids(
+        base_search_string, config.days_to_update
     )
 
     japanese_note_ids = (
@@ -137,6 +135,9 @@ def get_next_n_days_of_note_ids(
     search_query: str,
     days_to_update: int,
 ) -> set[NoteId]:
+    if days_to_update <= 0:
+        return set(mw.col.find_notes(search_query))
+
     # Start the result with all notes due for review within the next N days.
     next_n_days_search_string = mw.col.build_search_string(
         search_query,

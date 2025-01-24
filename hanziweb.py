@@ -193,7 +193,7 @@ def get_hanzi_models(config: Config) -> dict[NotetypeId, HanziModel]:
 def get_notes_to_update(
     config: Config,
     notes: dict[NoteId, HanziNote],
-    destination_note_ids: Optional[set[NoteId]],
+    destination_note_ids: set[NoteId],
     hanzi_web: HanziWeb,
     phonetic_series_web: HanziWeb,
     onyomi: dict[str, list[Tuple[str, list[str]]]],
@@ -210,17 +210,11 @@ def get_notes_to_update(
             return ""
         return f"{component}：{entry}"
 
-    notes_to_maybe_update = [
-        note
-        for note in (
-            notes.values()
-            if destination_note_ids is None
-            else [notes[note_id] for note_id in destination_note_ids]
-        )
-        if note.model.has_web_field
-    ]
     notes_to_update = []
-    for hanzi_note in notes_to_maybe_update:
+    for note_id in destination_note_ids:
+        hanzi_note = notes[note_id]
+        if not hanzi_note.model.has_web_field:
+            continue
         entries: list[str] = []
         for hanzi, phonetic_components in zip(
             hanzi_note.hanzi, hanzi_note.phonetic_series
@@ -290,16 +284,20 @@ class PendingChanges:
     notes_to_update: Sequence[Tuple[HanziNote, str]]
     hanzi_web: HanziWeb
     phonetic_series_web: HanziWeb
+    num_source_notes: int
+    num_destination_notes: int
 
     def __init__(
         self,
         config: Config,
         source_note_ids: set[NoteId],
-        destination_note_ids: Optional[set[NoteId]],
+        destination_note_ids: set[NoteId],
         japanese_note_ids: set[NoteId],
         hanzi_models: dict[NotetypeId, HanziModel],
     ):
         self.config = config
+        self.num_source_notes = len(source_note_ids)
+        self.num_destination_notes = len(destination_note_ids)
 
         converter = BasicConverter()  # type: ignore
 
@@ -316,11 +314,7 @@ class PendingChanges:
                 converter,
                 lazy_data.phonetics,
             )
-            for id in (
-                source_note_ids
-                if destination_note_ids is None
-                else source_note_ids.union(destination_note_ids)
-            )
+            for id in source_note_ids.union(destination_note_ids)
         }
 
         log("Creating HanziWebs")
@@ -355,6 +349,8 @@ class PendingChanges:
             f"== Hanzi Web.\n\n",
             f"Unique hanzi: {unique_hanzi(self.hanzi_web)}\n",
             f"Unique phonetic series: {unique_hanzi(self.phonetic_series_web)}\n",
+            f"Number of source notes: {self.num_source_notes}\n",
+            f"Number of destination notes: {self.num_destination_notes}\n",
         ]
         if self.notes_to_update:
             report.append(
@@ -373,5 +369,5 @@ class PendingChanges:
         for hanzi_note, entries in self.notes_to_update:
             note = mw.col.get_note(hanzi_note.id)
             note[self.config.web_field] = entries
-            note.flush()
+            mw.col.update_note(note)
         return f"Hanzi Web: {len(self.notes_to_update)} notes updated."
