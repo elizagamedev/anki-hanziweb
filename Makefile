@@ -3,7 +3,7 @@ KANJIDIC	?= kanjidic2.xml
 KANJI_BANK	?= kanji_bank_1.json
 
 NAME		:= hanziweb
-VERSION	:= 1.0.0
+VERSION	:= 1.1.0
 ANKIADDON	:= $(NAME)-$(VERSION).ankiaddon
 DEPS		:= __init__.py \
 		   common.py \

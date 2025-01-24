@@ -57,8 +57,8 @@ See also the `japanese_search_query` configuration option.
 Default: `"Kyujitai"`.
 
 ### `max_terms_per_hanzi`
-This limits the list of terms to the N most recently reviewed notes. Set this to
-`0` to remove the limit.
+This limits the list of terms to the next N notes with cards scheduled for
+review. Set this to `0` to remove the limit.
 
 Default: `5`.
 

@@ -24,7 +24,7 @@ def assert_is_not_none(optional: Optional[Any]) -> Any:
 
 mw: AnkiQt = assert_is_not_none(mw_optional)
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 CONFIG_VERSION = 1
 
 # Matches each hanzi character individually.
@@ -178,6 +178,10 @@ def html_tag(
     if properties:
         return f"<{tag} {properties}>{content}</{tag}>"
     return f"<{tag}>{content}</{tag}>"
+
+
+def log(message: str):
+    print(f"HanziWeb: {message}")
 
 
 class SupportsPendingChanges(Protocol):

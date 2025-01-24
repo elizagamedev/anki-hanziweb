@@ -1,9 +1,13 @@
+import sys
+
 from dataclasses import dataclass
 from re import Pattern
 from typing import Any, Callable, Iterable, Optional, Sequence, Collection, Tuple
+from functools import cached_property
 
 from anki.models import NotetypeId, NotetypeNameId
-from anki.notes import NoteId
+from anki.notes import NoteId, Note
+from anki.cards import Card
 
 from .common import (
     HANZI_REGEXP,
@@ -13,6 +17,7 @@ from .common import (
     html_tag,
     mw,
     normalize_unicode,
+    log,
 )
 from .kyujipy import BasicConverter
 
@@ -48,8 +53,9 @@ class HanziNote:
     web_field: Optional[str]
     hanzi: Sequence[str]
     phonetic_series: Sequence[str]
-    latest_review: int
+    order: int
     is_japanese: bool
+    is_new: bool
 
 
 def create_hanzi_note(
@@ -82,9 +88,20 @@ def create_hanzi_note(
         for h in hanzi
     ]
 
-    latest_review = max(
-        [mw.col.card_stats_data(card_id).latest_review for card_id in note.card_ids()]
-    )
+    cards = note.cards()
+
+    is_new = all([card.type == 0 for card in cards])
+
+    def get_order(card: Card) -> int:
+        if card.type == 0:  # new
+            return sys.maxsize
+        if card.type == 1:  # learning
+            return -1
+        if card.type == 2:  # due
+            return card.due
+        raise Exception(f"Unknown card type: {card.type}")
+
+    order = min([get_order(card) for card in cards])
 
     return HanziNote(
         id,
@@ -94,8 +111,9 @@ def create_hanzi_note(
         web_field,
         hanzi,
         phonetic_series,
-        latest_review,
+        order,
         is_japanese,
+        is_new,
     )
 
 
@@ -141,7 +159,7 @@ def create_hanzi_web(
         all_hanzi = field(hanzi_note)
         total_hanzi.update(all_hanzi)
         # Skip this one if we've never seen it.
-        if hanzi_note.latest_review == 0:
+        if hanzi_note.is_new:
             continue
         for hanzi in all_hanzi:
             note_set = hanzi_sets.get(hanzi)
@@ -152,7 +170,7 @@ def create_hanzi_web(
     web = {
         hanzi: sorted(
             note_set,
-            key=lambda x: (-x.latest_review, x.id),
+            key=lambda x: (x.order, x.id),
         )
         for (hanzi, note_set) in hanzi_sets.items()
     }
@@ -285,8 +303,10 @@ class PendingChanges:
 
         converter = BasicConverter()  # type: ignore
 
+        log("Reading lazy data")
         lazy_data = get_lazy_data()
 
+        log("Creating HanziNotes")
         notes = {
             id: create_hanzi_note(
                 config,
@@ -303,11 +323,14 @@ class PendingChanges:
             )
         }
 
+        log("Creating HanziWebs")
         self.hanzi_web = create_hanzi_web(notes.values(), lambda x: set(x.hanzi))
         self.phonetic_series_web = create_hanzi_web(
             notes.values(),
             lambda x: {p for s in x.phonetic_series for p in s},
         )
+
+        log("Finding notes to update")
         self.notes_to_update = get_notes_to_update(
             config,
             notes,
@@ -316,6 +339,8 @@ class PendingChanges:
             self.phonetic_series_web,
             lazy_data.onyomi,
         )
+
+        log("Done")
 
     @property
     def is_empty(self) -> bool:
