@@ -8,6 +8,12 @@ from functools import cached_property
 from anki.models import NotetypeId, NotetypeNameId
 from anki.notes import NoteId, Note
 from anki.cards import Card
+from anki.consts import (
+    CARD_TYPE_NEW,
+    CARD_TYPE_LRN,
+    CARD_TYPE_REV,
+    CARD_TYPE_RELEARNING,
+)
 
 from .common import (
     HANZI_REGEXP,
@@ -90,14 +96,14 @@ def create_hanzi_note(
 
     cards = note.cards()
 
-    is_new = all([card.type == 0 for card in cards])
+    is_new = all([card.type == CARD_TYPE_NEW for card in cards])
 
     def get_order(card: Card) -> int:
-        if card.type == 0:  # new
+        if card.type == CARD_TYPE_NEW:
             return sys.maxsize
-        if card.type == 1:  # learning
+        if card.type == CARD_TYPE_LRN or card.type == CARD_TYPE_RELEARNING:
             return -1
-        if card.type == 2:  # due
+        if card.type == CARD_TYPE_REV:
             return card.due
         raise Exception(f"Unknown card type: {card.type}")
 
