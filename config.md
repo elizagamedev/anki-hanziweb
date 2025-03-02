@@ -46,14 +46,8 @@ browser instead, much like `":browse"`. Additionally, this functionality does
 not work on AnkiMobile on iOS.
 
 #### Templated URL
-You may also use an arbitrary templated URL with keyword replacements. For
-example, consider the following URLs:
-
-- `"https://example.com/search-hanzi?q={hanzi}"`
-- `"https://example.com/search-term?q={kanji:term}&highlight={hanzi}"`
-- `"https://example.com/search-hanzi?q={phonetic},{hanzi}"`
-
-The complete list of available keywords is as follows:
+You may also use an arbitrary templated URL with keyword replacements. The
+complete list is as follows:
 
 - `hanzi`
 - `phonetic`
@@ -68,6 +62,19 @@ Much like the [built-in Anki template
 feature](https://docs.ankiweb.net/templates/fields.html?highlight=furigana#additional-ruby-character-filters),
 you may filter these keywords by prefixing them with filters `kanji:` and
 `kana:`. Unlike Anki templates, however, you may not chain filters.
+
+Here are some examples of URLs you might write:
+
+- `"https://example.com/search-hanzi?q={hanzi}"`
+- `"https://example.com/search-term?q={kanji:term}&highlight={hanzi}"`
+- `"https://example.com/search-hanzi?q={phonetic},{hanzi}"`
+
+For more concrete examples, here are some ways you could integrate Hanzi Web
+with [Pleco](https://www.pleco.com/) and
+[Textbender](https://github.com/elizagamedev/android-textbender) on Android.
+
+- `"plecoapi://x-callback-url/s?q={hanzi}"`
+- `"textbender://x?x={kanji:term}"`
 
 ### `config_version`
 This is used internally by Hanzi Web to ensure compatibility with future
