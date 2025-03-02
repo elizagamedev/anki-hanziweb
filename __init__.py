@@ -1,3 +1,4 @@
+import aqt
 from anki.collection import SearchNode
 from aqt import gui_hooks
 from aqt.qt import QAction, QMenu  # type: ignore
@@ -6,10 +7,12 @@ from itertools import islice
 
 from .common import (
     CONFIG_VERSION,
-    VERSION,
     Config,
     SupportsPendingChanges,
+    VERSION,
+    get_lazy_data,
     load_config,
+    log,
     mw,
     show_report,
     show_update_nag,
@@ -19,7 +22,7 @@ from .hanziweb import get_hanzi_models
 from .jitai import PendingChanges as PendingJitaiChanges
 from anki.notes import NoteId
 from anki.decks import DeckId
-from typing import Sequence
+from typing import Sequence, Tuple, Any
 from pprint import pprint
 from anki.consts import NEW_CARDS_DUE
 
@@ -43,7 +46,10 @@ ABOUT_TEXT = (
 
 
 def update(config: Config, is_interactive: bool) -> None:
-    hanzi_models = get_hanzi_models(config)
+    log("Reading lazy data")
+    lazy_data = get_lazy_data()
+
+    hanzi_models = get_hanzi_models(config, lazy_data.js)
 
     base_search_string = mw.col.build_search_string(
         config.search_query,
@@ -86,6 +92,8 @@ def update(config: Config, is_interactive: bool) -> None:
             destination_note_ids,
             japanese_note_ids,
             hanzi_models,
+            lazy_data.phonetics,
+            lazy_data.onyomi,
         ),
         PendingJitaiChanges(
             config,
@@ -93,6 +101,10 @@ def update(config: Config, is_interactive: bool) -> None:
             japanese_note_ids,
         ),
     ]
+
+    for change in pending_changes:
+        if not change.confirm():
+            return
 
     if is_interactive:
         report = [
@@ -192,6 +204,29 @@ def maybe_update_from_hook() -> None:
         update(config, is_interactive=False)
 
 
+def on_webview_did_receive_js_message(
+    handled: Tuple[bool, Any], message: str, context: Any
+) -> Tuple[bool, Any]:
+    if not message.startswith("hanziweb"):
+        return handled
+
+    args = message.split(" ", maxsplit=1)
+    ret = None
+    if args[0] == "hanziwebEditNote":
+        note_id = NoteId(int(args[1]))
+        try:
+            # Try using AnkiConnect's nice dialog.
+            aqt.dialogs.open("foosoft.ankiconnect.Edit", mw.col.get_note(note_id))
+        except KeyError:
+            # But fall back to browser.
+            browser = aqt.dialogs.open("Browser", mw.window())
+            browser.search_for_terms(f"nid:{args[1]}")
+    elif args[0] == "hanziwebBrowse":
+        browser = aqt.dialogs.open("Browser", mw.window())
+        browser.search_for_terms(args[1])
+    return (True, ret)
+
+
 def init() -> None:
     menu = QMenu("Hanzi &Web", mw)
     update_action = QAction("&Update notes", menu)
@@ -205,6 +240,7 @@ def init() -> None:
 
     gui_hooks.sync_will_start.append(maybe_update_from_hook)
     gui_hooks.sync_did_finish.append(maybe_update_from_hook)
+    gui_hooks.webview_did_receive_js_message.append(on_webview_did_receive_js_message)
 
 
 init()

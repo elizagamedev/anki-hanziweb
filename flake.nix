@@ -26,6 +26,7 @@
           {
             nativeBuildInputs = with pkgs; [
               black
+              closurecompiler
               gnumake
               python-with-my-packages
               zip

@@ -2,7 +2,7 @@ import sys
 
 from dataclasses import dataclass
 from re import Pattern
-from typing import Any, Callable, Iterable, Optional, Sequence, Collection, Tuple
+from typing import Any, Callable, Iterable, Optional, Sequence, Collection, Tuple, Union
 from functools import cached_property
 
 from anki.models import NotetypeId, NotetypeNameId
@@ -14,18 +14,43 @@ from anki.consts import (
     CARD_TYPE_REV,
     CARD_TYPE_RELEARNING,
 )
+from aqt.utils import askUser
 
 from .common import (
-    HANZI_REGEXP,
     Config,
+    HANZI_REGEXP,
+    JS_VERSION,
     assert_is_not_none,
-    get_lazy_data,
+    html_click_action,
     html_tag,
+    inject_js_into_html,
+    log,
     mw,
     normalize_unicode,
-    log,
 )
 from .kyujipy import BasicConverter
+
+
+def inject_into_templates(model_dict: dict[str, Any], js: str) -> tuple[int, int]:
+    min_previous_js_version: Optional[int] = None
+    max_previous_js_version = -1
+    is_dirty = False
+    for template in model_dict["tmpls"]:
+        for side in ("qfmt", "afmt"):
+            html, this_previous_js_version = inject_js_into_html(js, template[side])
+            min_previous_js_version = (
+                this_previous_js_version
+                if min_previous_js_version is None
+                else min(min_previous_js_version, this_previous_js_version)
+            )
+            max_previous_js_version = max(
+                max_previous_js_version, this_previous_js_version
+            )
+            if this_previous_js_version != JS_VERSION:
+                template[side] = html
+    if min_previous_js_version is None:
+        min_previous_js_version = max_previous_js_version
+    return min_previous_js_version, max_previous_js_version
 
 
 @dataclass(eq=False, frozen=True)
@@ -34,20 +59,30 @@ class HanziModel:
     name: str
     fields: Sequence[str]
     has_web_field: bool
+    model_dict: dict[str, Any]
+    previous_js_version: tuple[int, int]
+
+    def apply(self) -> None:
+        mw.col.models.update_dict(self.model_dict)
 
 
 def create_hanzi_model(
     hanzi_fields_regexp: Pattern[Any],
     web_field: str,
     note_type: NotetypeNameId,
+    js: str,
 ) -> Optional[HanziModel]:
     id = NotetypeId(note_type.id)
-    all_fields = mw.col.models.field_names(assert_is_not_none(mw.col.models.get(id)))
+    model_dict = assert_is_not_none(mw.col.models.get(id))
+    all_fields = mw.col.models.field_names(model_dict)
     fields = [name for name in all_fields if hanzi_fields_regexp.fullmatch(name)]
     if not fields:
         return None
     has_web_field = web_field in all_fields
-    return HanziModel(id, note_type.name, fields, has_web_field)
+    previous_js_version = inject_into_templates(model_dict, js)
+    return HanziModel(
+        id, note_type.name, fields, has_web_field, model_dict, previous_js_version
+    )
 
 
 @dataclass(eq=False, frozen=True)
@@ -130,30 +165,41 @@ class HanziWeb:
 
     def entry(
         self,
-        config: Config,
+        term_separator: str,
+        max_terms_per_hanzi: int,
+        click_term_action: Union[None, Config.ClickAction, str],
         hanzi: str,
         select: Callable[[HanziNote], bool],
-    ) -> str:
+    ) -> Tuple[str, list[NoteId]]:
         note_list = self.web.get(hanzi)
         if not note_list:
-            return ""
+            return "", []
         terms: list[str] = []
+        ids: list[NoteId] = []
         # TODO: Do this smarter
         reached_term_limit: Callable[[], bool] = (
             (lambda: False)
-            if config.max_terms_per_hanzi == 0
-            else (lambda: len(terms) >= config.max_terms_per_hanzi)
+            if max_terms_per_hanzi == 0
+            else (lambda: len(terms) >= max_terms_per_hanzi)
         )
         for other_hanzi_note in note_list:
             if not select(other_hanzi_note):
                 continue
-            for term in other_hanzi_note.terms:
-                if reached_term_limit():
-                    break
-                terms.append(term)
-            if reached_term_limit():
-                break
-        return config.term_separator.join(terms)
+            if not reached_term_limit():
+                for term in other_hanzi_note.terms:
+                    if reached_term_limit():
+                        break
+                    terms.append(
+                        html_click_action(
+                            term,
+                            click_term_action,
+                            [other_hanzi_note.id],
+                            {"hanzi": hanzi, "term": term},
+                        )
+                    )
+            ids.append(other_hanzi_note.id)
+        ids.sort()
+        return term_separator.join(terms), ids
 
 
 def create_hanzi_web(
@@ -183,13 +229,18 @@ def create_hanzi_web(
     return HanziWeb(web, len(total_hanzi))
 
 
-def get_hanzi_models(config: Config) -> dict[NotetypeId, HanziModel]:
+def get_hanzi_models(config: Config, js: str) -> dict[NotetypeId, HanziModel]:
     if not config.hanzi_fields_regexp:
         return {}
     return {
         model.id: model
         for model in [
-            create_hanzi_model(config.hanzi_fields_regexp, config.web_field, note_type)
+            create_hanzi_model(
+                config.hanzi_fields_regexp,
+                config.web_field,
+                note_type,
+                js,
+            )
             for note_type in mw.col.models.all_names_and_ids()
         ]
         if model
@@ -204,17 +255,30 @@ def get_notes_to_update(
     phonetic_series_web: HanziWeb,
     onyomi: dict[str, list[Tuple[str, list[str]]]],
 ) -> list[tuple[HanziNote, str]]:
-    def build_phonetic_series_entry_line(hanzi_note: HanziNote, component: str) -> str:
-        entry = phonetic_series_web.entry(
-            config,
+    def build_phonetic_series_entry(
+        hanzi_note: HanziNote, component: str
+    ) -> Tuple[str, str]:
+        terms_text, ids = phonetic_series_web.entry(
+            config.term_separator,
+            config.max_terms_per_hanzi,
+            config.click_phonetic_term_action,
             component,
             # Exclude any other entries that contain the exact same hanzi as this
             # one; it just creates noise in the output.
             lambda x: x != hanzi_note and hanzi not in x.hanzi,
         )
-        if not entry:
-            return ""
-        return f"{component}：{entry}"
+        component_text = "音符 " + html_tag(
+            "span", component, clazz="hanziweb-phonetic-component"
+        )
+        return (
+            html_click_action(
+                component_text,
+                config.click_phonetic_action,
+                ids,
+                {"hanzi": hanzi, "phonetic": component},
+            ),
+            terms_text,
+        )
 
     notes_to_update = []
     for note_id in destination_note_ids:
@@ -227,50 +291,67 @@ def get_notes_to_update(
         ):
             this_onyomi = (onyomi.get(hanzi) or []) if hanzi_note.is_japanese else []
 
-            same_terms_td_text = hanzi_web.entry(
-                config, hanzi, lambda x: x != hanzi_note
+            same_terms_text, same_terms_ids = hanzi_web.entry(
+                config.term_separator,
+                config.max_terms_per_hanzi,
+                config.click_hanzi_term_action,
+                hanzi,
+                lambda x: x != hanzi_note,
             )
-            phonetic_series_terms_td_text = "<br>".join(
-                line
-                for line in [
-                    build_phonetic_series_entry_line(hanzi_note, component)
+
+            all_terms = (
+                ([("hanziweb-same", "", same_terms_text)] if same_terms_text else [])
+                + [
+                    (
+                        "hanziweb-phonetic-series",
+                        *build_phonetic_series_entry(hanzi_note, component),
+                    )
                     for component in phonetic_components
                 ]
-                if line
+                + [
+                    ("hanziweb-onyomi", kind, config.term_separator.join(readings))
+                    for (kind, readings) in this_onyomi
+                ]
             )
-            all_terms_td_text = [
-                same_terms_td_text,
-                phonetic_series_terms_td_text,
-            ] + [config.term_separator.join(readings) for (_, readings) in this_onyomi]
-
-            rowspan = len([x for x in all_terms_td_text if x])
 
             hanzi_td = html_tag(
                 "td",
-                hanzi,
+                html_click_action(
+                    hanzi, config.click_hanzi_action, same_terms_ids, {"hanzi": hanzi}
+                ),
                 clazz="hanziweb-hanzi",
-                rowspan=str(max(rowspan, 1)),
+                rowspan=str(max(len(all_terms), 1)),
             )
 
-            if rowspan == 0:
+            if len(all_terms) == 0:
                 entries.append(
                     html_tag("tr", hanzi_td + html_tag("td", "", colspan="2"))
                 )
                 continue
 
-            for clazz, kind_td_text, terms_td_text in zip(
-                ["hanziweb-same", "hanziweb-phonetic-series"]
-                + ["hanziweb-onyomi"] * len(this_onyomi),
-                ["", "諧聲"] + [kind for (kind, _) in this_onyomi],
-                all_terms_td_text,
-            ):
-                if not terms_td_text:
-                    continue
-                kind_td = html_tag("td", kind_td_text, clazz=f"{clazz} hanziweb-kind")
-                terms_td = html_tag(
-                    "td",
-                    terms_td_text,
-                    clazz=f"{clazz} hanziweb-terms",
+            for clazz, kind_td_text, terms_td_text in all_terms:
+                kind_td = (
+                    html_tag(
+                        "td",
+                        kind_td_text,
+                        clazz=f"{clazz} hanziweb-kind",
+                    )
+                    if kind_td_text
+                    else ""
+                )
+                terms_td = (
+                    html_tag(
+                        "td",
+                        terms_td_text,
+                        clazz=f"{clazz} hanziweb-terms",
+                    )
+                    if kind_td_text
+                    else html_tag(
+                        "td",
+                        terms_td_text,
+                        clazz=f"{clazz} hanziweb-terms",
+                        colspan="2",
+                    )
                 )
                 entries.append(html_tag("tr", hanzi_td + kind_td + terms_td))
                 hanzi_td = ""
@@ -287,6 +368,7 @@ def get_notes_to_update(
 
 class PendingChanges:
     config: Config
+    models_to_update: Sequence[HanziModel]
     notes_to_update: Sequence[Tuple[HanziNote, str]]
     hanzi_web: HanziWeb
     phonetic_series_web: HanziWeb
@@ -300,6 +382,8 @@ class PendingChanges:
         destination_note_ids: set[NoteId],
         japanese_note_ids: set[NoteId],
         hanzi_models: dict[NotetypeId, HanziModel],
+        phonetics: dict[str, str],
+        onyomi: dict[str, list[Tuple[str, list[str]]]],
     ):
         self.config = config
         self.num_source_notes = len(source_note_ids)
@@ -307,8 +391,11 @@ class PendingChanges:
 
         converter = BasicConverter()  # type: ignore
 
-        log("Reading lazy data")
-        lazy_data = get_lazy_data()
+        self.models_to_update = [
+            x
+            for x in hanzi_models.values()
+            if x.previous_js_version != (JS_VERSION, JS_VERSION)
+        ]
 
         log("Creating HanziNotes")
         notes = {
@@ -318,7 +405,7 @@ class PendingChanges:
                 hanzi_models,
                 japanese_note_ids,
                 converter,
-                lazy_data.phonetics,
+                phonetics,
             )
             for id in source_note_ids.union(destination_note_ids)
         }
@@ -337,14 +424,30 @@ class PendingChanges:
             destination_note_ids,
             self.hanzi_web,
             self.phonetic_series_web,
-            lazy_data.onyomi,
+            onyomi,
         )
 
         log("Done")
 
     @property
     def is_empty(self) -> bool:
-        return not self.notes_to_update
+        return not self.models_to_update and not self.notes_to_update
+
+    def confirm(self) -> bool:
+        downgraded_models = [
+            x
+            for x in self.models_to_update
+            if any([x > JS_VERSION for x in x.previous_js_version])
+        ]
+        if downgraded_models:
+            return askUser(
+                "The JavaScript of some note types will be downgraded. "
+                + "You are likely running a newer version of Hanzi Web on another "
+                + "device. You should update Hanzi Web on this device to prevent "
+                + "issues. Continue?",
+                defaultno=True,
+            )
+        return True
 
     @property
     def report(self) -> str:
@@ -358,6 +461,14 @@ class PendingChanges:
             f"Number of source notes: {self.num_source_notes}\n",
             f"Number of destination notes: {self.num_destination_notes}\n",
         ]
+        if self.models_to_update:
+            report.append(
+                "\nModels to update: "
+                + ", ".join([x.name for x in self.models_to_update])
+                + "\n"
+            )
+        else:
+            report.append("\nAll models already up to date.\n")
         if self.notes_to_update:
             report.append(
                 f"\nNotes to update [{self.config.web_field}] ({len(self.notes_to_update)}):\n"
@@ -369,11 +480,21 @@ class PendingChanges:
         return "".join(report)
 
     def apply(self) -> Optional[str]:
-        if not self.notes_to_update:
+        if not self.models_to_update and not self.notes_to_update:
             return None
 
-        for hanzi_note, entries in self.notes_to_update:
-            note = mw.col.get_note(hanzi_note.id)
-            note[self.config.web_field] = entries
-            mw.col.update_note(note)
-        return f"Hanzi Web: {len(self.notes_to_update)} notes updated."
+        tooltip = "Hanzi Web:"
+
+        if self.models_to_update:
+            tooltip += f" {len(self.models_to_update)} model(s) updated."
+            for model in self.models_to_update:
+                model.apply()
+
+        if self.notes_to_update:
+            tooltip += f" {len(self.notes_to_update)} note(s) updated."
+            for hanzi_note, entries in self.notes_to_update:
+                note = mw.col.get_note(hanzi_note.id)
+                note[self.config.web_field] = entries
+                mw.col.update_note(note)
+
+        return tooltip

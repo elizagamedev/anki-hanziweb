@@ -1,10 +1,73 @@
 ### `auto_run_on_sync`
 If `true`, automatically run Hanzi Web before and after each sync. With this
 enabled, after you review cards on another device, you'll typically have to sync
-twice in a row on the device that’s running Hanzi Web: once to download their
+twice in a row on the device that's running Hanzi Web: once to download their
 changes, and once again to synchronize the updated Hanzi Web entries.
 
 Default: `false`.
+
+### `click_hanzi_action`, `click_hanzi_term_action`, `click_phonetic_action`, `click_phonetic_term_action`
+These four options configure what happens when you click certain items in Hanzi
+Web. You can configure these to browse directly to the notes in Anki or
+automatically open dictionary apps, for example.
+
+- `click_hanzi_action` corresponds to the hanzi on the very left. Default:
+  `":browse"`.
+- `click_hanzi_term_action` corresponds to the individual terms on the right of
+  the hanzi row. Default: `":edit"`.
+- `click_phonetic_action` corresponds to the phonetic component characters (音符)
+  on the left. Default: `":browse"`.
+- `click_phonetic_term_action` corresponds to the individual terms on the right
+  of the phonetic component row. Default: `":edit"`.
+
+These four options can be set the any of the following values.
+
+#### `":none"`
+Nothing happens when this item is clicked.
+
+#### `":browse"`
+If `hanzi` or `phonetic` are set to this value, open the Anki card browser to
+point to *all* other notes which share this hanzi or phonetic component. If
+`hanzi_term` or `phonetic_term` are set to this value, open the Anki card
+browser to this specific note. Unfortunately, this functionality does not work
+on AnkiMobile on iOS.
+
+#### `":edit"`
+If `hanzi_term` or `phonetic_term` are set to this value, open the term's note
+for editing.
+
+This may also be used for `hanzi` and `phonetic`, but doing so will only open a
+single arbitrary note for editing, so this is not very useful.
+
+Note that this only works on desktop and if
+[AnkiConnect](https://ankiweb.net/shared/info/2055492159) is installed. If
+AnkiConnect is not installed, or if using AnkiDroid, the note is opened in the
+browser instead, much like `":browse"`. Additionally, this functionality does
+not work on AnkiMobile on iOS.
+
+#### Templated URL
+You may also use an arbitrary templated URL with keyword replacements. For
+example, consider the following URLs:
+
+- `"https://example.com/search-hanzi?q={hanzi}"`
+- `"https://example.com/search-term?q={kanji:term}&highlight={hanzi}"`
+- `"https://example.com/search-hanzi?q={phonetic},{hanzi}"`
+
+The complete list of available keywords is as follows:
+
+- `hanzi`
+- `phonetic`
+- `term`
+
+Note that you may only specify these keywords for options where this information
+is accessible. For example, the `phonetic` keyword is unavailable in
+`click_hanzi_action` and `click_hanzi_term_action`. Likewise, the `term` keyword
+is unavailable in `click_hanzi_action` and `click_phonetic_action`.
+
+Much like the [built-in Anki template
+feature](https://docs.ankiweb.net/templates/fields.html?highlight=furigana#additional-ruby-character-filters),
+you may filter these keywords by prefixing them with filters `kanji:` and
+`kana:`. Unlike Anki templates, however, you may not chain filters.
 
 ### `config_version`
 This is used internally by Hanzi Web to ensure compatibility with future
@@ -64,7 +127,7 @@ Default: `5`.
 
 ### `search_query`
 Only notes will be considered which match this search query. If empty, this
-includes the entire database. You could use this to limit Hanzi Web’s operation
+includes the entire database. You could use this to limit Hanzi Web's operation
 to specific decks, note types, tags, or other creative use-cases. See the [Anki
 manual on Searching](https://docs.ankiweb.net/searching.html#tags-decks-cards-and-notes).
 
@@ -80,6 +143,6 @@ Default: `"、"`.
 
 ### `web_field`
 For each considered note, the output of the web will be placed in this field if
-it exists. This name is case-sensitive. You probably don’t want to change this.
+it exists. This name is case-sensitive. You probably don't want to change this.
 
 Default: `"HanziWeb"`.

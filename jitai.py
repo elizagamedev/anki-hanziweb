@@ -109,6 +109,9 @@ class PendingChanges:
     def is_empty(self) -> bool:
         return not self.notes
 
+    def confirm(self) -> bool:
+        return True
+
     @property
     def report(self) -> str:
         report = [

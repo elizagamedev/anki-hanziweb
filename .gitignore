@@ -1,10 +1,10 @@
 /.direnv
 __pycache__
 /*.ankiaddon
-/README.html
 /meta.json
 /kanjidic2.xml
 /kanji_bank_1.json
 /kanjidic-onyomi.json
 /kanji-onyomi.json
 /phonetics.json
+/hanziweb.min.js

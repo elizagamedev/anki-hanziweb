@@ -17,10 +17,16 @@ DEPS		:= __init__.py \
 		   LICENSE \
 		   kyujipy \
 		   kanji-onyomi.json \
-		   phonetics.json
+		   phonetics.json \
+		   hanziweb.min.js
 
 all: 	$(ANKIADDON)
-clean:	; rm -rf *.ankiaddon __pycache__ README.html kanji-onyomi.json kanjidic-onyomi.json phonetics.json
+clean:	; rm -rf *.ankiaddon \
+		__pycache__ \
+		kanji-onyomi.json \
+		kanjidic-onyomi.json \
+		phonetics.json \
+		hanziweb.min.js
 .PHONY: all clean format
 .DELETE_ON_ERROR:
 
@@ -36,6 +42,9 @@ kanji-onyomi.json: tools/make-kanji-onyomi.py $(KANJI_BANK) kanjidic-onyomi.json
 
 phonetics.json: tools/make-phonetics.py
 	python3 tools/make-phonetics.py > $@
+
+hanziweb.min.js: hanziweb.js
+	closure-compiler --js $< --js_output_file $@
 
 $(ANKIADDON): $(DEPS)
 	rm -f $@

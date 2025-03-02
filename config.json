@@ -1,5 +1,9 @@
 {
   "auto_run_on_sync": false,
+  "click_hanzi_action": ":browse",
+  "click_hanzi_term_action": ":edit",
+  "click_phonetic_action": ":browse",
+  "click_phonetic_term_action": ":edit",
   "config_version": 1,
   "days_to_update": 0,
   "hanzi_fields_regexp": "Expression",

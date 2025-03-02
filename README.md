@@ -1,10 +1,10 @@
 # Hanzi Web for Anki
 ![Screenshot](screenshot.png)
 
-This addon generates a “web” of hanzi/kanji amongst your Anki notes, adding a
-few examples taken from cards you’ve already reviewed for each hanzi in each
-note. The intent is that you’ll be able to more easily learn the readings of
-hanzi if you are reminded of other words it comprises that you’ve already
+This addon generates a "web" of hanzi/kanji amongst your Anki notes, adding a
+few examples taken from cards you've already reviewed for each hanzi in each
+note. The intent is that you'll be able to more easily learn the readings of
+hanzi if you are reminded of other words it comprises that you've already
 studied.
 
 ## Installation
@@ -27,25 +27,32 @@ styling by default. It instead exposes the following CSS classes:
 - `.hanziweb`, applied to the whole `<table>`.
 - `.hanziweb-hanzi`, which is the hanzi for which terms are listed (the left
   side of the screenshot shown above).
-- `.hanziweb-kind`, which is applied to the `<td>` for the indicator for the "kind" of row.
-  This is 聲 for Chinese phonetic series (as in 諧聲) and 音 for Japanese
-  on'yomi readings (as in 音読). For the row containing the hanzi itself,
-  this is blank.
-- `.hanziweb-terms`, `.hanziweb-phonetic-series`, and `.hanziweb-onyomi`, which
-  is applied to the `<td>` for the list of terms for each of the corresponding
-  categories. This is the right-hand side of the table.
+- `.hanziweb-kind`, which is applied to the left `<td>`s which denote the "kind"
+  of row: terms with exact hanzi matches, terms with phonetic series matches, or
+  on'yomi readings.
+- `.hanziweb-terms`, which is applied to the right `<td>`s which list terms (or
+  onyomi).
+- `.hanziweb-same`, `.hanziweb-phonetic-series`, and `.hanziweb-onyomi`, which
+  can be used to style entire rows based on their "kind".
+- `.hanziweb-phonetic-component`, which is the the phonetic component character
+  (音符).
 
-The styling in the above screenshot was achieved with the following CSS. You may
-copy it into your note type’s CSS if you wish.
+Similar styling to the above screenshot was achieved with the following CSS. You
+may copy it into your note type's CSS if you wish.
 
 ``` css
 .hanziweb {
   margin: 10px auto;
-  max-width: 400px;
+  max-width: 500px;
   border-style: solid;
   border-color: gray;
   border-width: 1px;
   border-collapse: collapse;
+}
+
+.hanziweb a {
+  color: unset;
+  text-decoration: unset;
 }
 
 .hanziweb td {
@@ -65,24 +72,34 @@ copy it into your note type’s CSS if you wish.
 .hanziweb-kind {
   font-size: 20px;
   text-align: right;
+  white-space: nowrap;
 }
 
 .hanziweb-terms {
   font-size: 20px;
   text-align: left;
   word-break: keep-all;
+  width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .hanziweb-phonetic-series,
 .hanziweb-onyomi {
   color: gray;
-  word-break: keep-all;
+}
+
+.hanziweb-phonetic-component {
+  color: black;
+}
+
+.nightMode .hanziweb-phonetic-component {
+  color: white;
 }
 ```
 
 You can specify `display: none;` on `.hanziweb-phonetic-series` or
-`.hanziweb-onyomi` if you don’t wish to see either. For example, to disable
-displaying on’yomi:
+`.hanziweb-onyomi` if you don't wish to see either. For example, to disable
+displaying on'yomi:
 
 ```css
 .hanziweb-onyomi {
@@ -100,12 +117,12 @@ each.
 
 - Characters are used as-is to look up phonetic series. In the future,
   simplified characters will be converted to traditional characters.
-- Japanese on’yomi readings are omitted.
+- Japanese on'yomi readings are omitted.
 
 ### Japanese
 
-- On’yomi are included in entries, and further differentiated into go’on,
-  kan’on, etc. This data is derived from [MarvNC’s Wiktionary Yomichan
+- On'yomi are included in entries, and further differentiated into go'on,
+  kan'on, etc. This data is derived from [MarvNC's Wiktionary Yomichan
   dictionary](https://github.com/MarvNC/yomichan-dictionaries#wiktionary-kanji),
   which in turn is derived from Wiktionary. There may be errors from parsing or
   from incorrect source information.
@@ -123,22 +140,26 @@ each.
 
 ## Usage
 Ensure that the note types of the notes you want to add web entries to have a
-field called “HanziWeb” (without quotes). Also ensure that you’ve configured
+field called "HanziWeb" (without quotes). Also ensure that you've configured
 Hanzi Web as described in the [Configuration](#configuration) section, so that
 you are including the correct cards and using the hanzi from the correct fields.
-Make sure that you add `{{HanziWeb}}` to your cards’ HTML templates as well.
+Make sure that you add `{{HanziWeb}}` to your cards' HTML templates as well. If
+your terms contain Ruby text, you can specify `{{furigana:Hanziweb}}` instead.
+See [Anki documentation on ruby
+characters](https://docs.ankiweb.net/templates/fields.html?highlight=furigana#ruby-characters)
+for more information.
 
 Now you can add web entries to your notes by accessing `Tools -> Hanzi Web ->
 Update notes…` or by pressing `Control-W` (`Command-W` on macOS). A dialog with
-a report of the pending changes will be shown; you’ll want to consider this
-carefully if it’s your first time running Hanzi Web or if you’ve recently
-changed your configuration to make sure that you haven’t made any mistakes.
-Click “Apply” and your notes’ “HanziWeb” fields will be filled!
+a report of the pending changes will be shown; you'll want to consider this
+carefully if it's your first time running Hanzi Web or if you've recently
+changed your configuration to make sure that you haven't made any mistakes.
+Click "Apply" and your notes' "HanziWeb" fields will be filled!
 
 Alternatively, you can set `auto_run_on_sync` to `true` to automatically run
 Hanzi Web before and after each sync operation.
 
 ## Copyright
-This addon uses data from Wiktionary for both the phonetic series and on’yomi.
-Please view Wiktionary’s copyright information
+This addon uses data from Wiktionary for both the phonetic series and on'yomi.
+Please view Wiktionary's copyright information
 [here](https://en.wiktionary.org/wiki/Wiktionary:Copyrights).

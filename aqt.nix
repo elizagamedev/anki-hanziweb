@@ -20,7 +20,7 @@
 }:
 
 let
-  version = "2.1.54";
+  version = "25.02";
 
   anki = buildPythonPackage rec {
     pname = "anki";
@@ -32,8 +32,8 @@ let
       dist = "cp39";
       python = "cp39";
       abi = "abi3";
-      platform = "manylinux_2_28_x86_64";
-      hash = "sha256-u4ExD0Ukpjlfl67sYp1cKHQEuIIMV0dAboUlG7oG26w=";
+      platform = "manylinux_2_35_x86_64";
+      hash = "sha256-0OvvnY9zCKlyg1ciAXDaj2VYqg3/dy/SM3QABPBxf0E=";
     };
 
     propagatedBuildInputs = [
@@ -58,7 +58,7 @@ buildPythonPackage rec {
     inherit pname version format;
     dist = "py3";
     python = "py3";
-    hash = "sha256-7gWjmxm+D8NsnrLjlFidLvrdGCAzNRYAzsXapEJGL2U=";
+    hash = "sha256-fTxxXV/8zKebG9OVQiUbiT3QW1wy7vH/HEOtGle+1IM=";
   };
 
   propagatedBuildInputs = [

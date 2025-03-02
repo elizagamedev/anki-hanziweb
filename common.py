@@ -1,10 +1,15 @@
 import json
 import re
 import unicodedata
+import html
+import urllib
 from pathlib import PurePath
+from enum import Enum
 from re import Pattern
-from typing import Any, Optional, Protocol, Tuple
+from typing import Any, Optional, Protocol, Tuple, Union, Sequence
+from io import StringIO
 
+from anki.notes import NoteId
 from anki.config import Config as AnkiConfig
 from aqt import mw as mw_optional
 from aqt.main import AnkiQt
@@ -14,7 +19,7 @@ from aqt.qt import (  # type: ignore
     QPlainTextEdit,
     QVBoxLayout,
 )
-from aqt.utils import qconnect, showWarning
+from aqt.utils import qconnect, showWarning, showInfo
 
 
 def assert_is_not_none(optional: Optional[Any]) -> Any:
@@ -26,13 +31,34 @@ mw: AnkiQt = assert_is_not_none(mw_optional)
 
 VERSION = "1.1.2"
 CONFIG_VERSION = 1
+JS_VERSION = 0
 
 # Matches each hanzi character individually.
 HANZI_REGEXP = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 
+# Matches JS sigil in template.
+JS_SIGIL = f"/* DO NOT EDIT! -- Hanzi Web JS v{JS_VERSION} */\n"
+JS_SIGIL_REGEXP = re.compile(
+    r"/\s*\*\s*DO NOT EDIT! -- Hanzi Web JS v(?P<version>\d+)\s*\*/\n?"
+)
+
+# https://stackoverflow.com/a/19730306
+_TAG_REGEXP = re.compile(r"(<!--.*?-->|<[^>]*>)")
+
+# https://github.com/ankitects/anki/blob/a6426bebe21ea1fe85f5cf31a711134b06447788/rslib/src/template_filters.rs#L113
+_FURIGANA_REGEXP = re.compile(r" ?([^ >]+?)\[(.+?)\]")
+
 
 class Config:
+    class ClickAction(Enum):
+        EDIT = 0
+        BROWSE = 1
+
     auto_run_on_sync: bool
+    click_hanzi_action: Union[None, ClickAction, str]
+    click_hanzi_term_action: Union[None, ClickAction, str]
+    click_phonetic_action: Union[None, ClickAction, str]
+    click_phonetic_term_action: Union[None, ClickAction, str]
     config_version: int
     days_to_update: int
     hanzi_fields_regexp: Optional[Pattern[Any]]
@@ -50,6 +76,19 @@ class Config:
                 f"`config_version' {self.config_version} too new "
                 f"(expecting <= {CONFIG_VERSION})"
             )
+
+        self.click_hanzi_action = self._string_to_click_action(
+            config.get("click_hanzi_action"), self.ClickAction.BROWSE
+        )
+        self.click_hanzi_term_action = self._string_to_click_action(
+            config.get("click_hanzi_term_action"), self.ClickAction.EDIT
+        )
+        self.click_phonetic_action = self._string_to_click_action(
+            config.get("click_phonetic_action"), self.ClickAction.BROWSE
+        )
+        self.click_phonetic_term_action = self._string_to_click_action(
+            config.get("click_phonetic_term_action"), self.ClickAction.EDIT
+        )
 
         self.days_to_update = config.get("days_to_update") or 0
 
@@ -76,6 +115,27 @@ class Config:
         auto_run_on_sync = config.get("auto_run_on_sync")
         self.auto_run_on_sync = False if auto_run_on_sync is None else auto_run_on_sync
 
+    @classmethod
+    def _string_to_click_action(
+        cls,
+        string: Optional[str],
+        default: Union[None, ClickAction, str],
+    ) -> Union[None, ClickAction, str]:
+        if not string:
+            return default
+        if string == ":none":
+            return None
+        if string.startswith(":"):
+            result = {
+                ":edit": cls.ClickAction.EDIT,
+                ":browse": cls.ClickAction.BROWSE,
+            }.get(string)
+            if not result:
+                showWarning(f"Invalid click action: {string}")
+                return default
+            return result
+        return string
+
 
 def load_config() -> Config:
     return Config(assert_is_not_none(mw.addonManager.getConfig(__name__)))
@@ -84,17 +144,20 @@ def load_config() -> Config:
 class LazyData:
     onyomi: dict[str, list[Tuple[str, list[str]]]]
     phonetics: dict[str, str]
+    js: str
 
     def __init__(
         self,
         onyomi: dict[str, list[list[str]]],
         phonetics: dict[str, str],
+        js: str,
     ):
         self.onyomi = {
             kanji: [(readings[0], readings[1:]) for readings in all_readings]
             for kanji, all_readings in onyomi.items()
         }
         self.phonetics = phonetics
+        self.js = js
 
 
 _lazy_data: Optional[LazyData] = None
@@ -115,7 +178,12 @@ def get_lazy_data() -> LazyData:
         ) as phonetics_file:
             phonetics = json.load(phonetics_file)
 
-        _lazy_data = LazyData(onyomi, phonetics)
+        with open(
+            addon_directory / "hanziweb.min.js", "r", encoding="utf-8"
+        ) as js_file:
+            js = js_file.read()
+
+        _lazy_data = LazyData(onyomi, phonetics, js)
     return _lazy_data
 
 
@@ -129,7 +197,7 @@ def normalize_unicode(string: str) -> str:
 
 class ReportDialog(QDialog):  # type: ignore
     def __init__(self, text: str):
-        super().__init__()
+        super().__init__(mw)
         self.setWindowTitle("Hanzi Web")
         self.resize(400, 400)
 
@@ -180,16 +248,114 @@ def html_tag(
     return f"<{tag}>{content}</{tag}>"
 
 
-def log(message: str):
+def _urlencode(text: str) -> str:
+    no_tags = _TAG_REGEXP.sub("", text)
+    unescaped = html.unescape(no_tags)
+    return urllib.parse.quote(unescaped, safe="")
+
+
+def _kana_filter(text: str) -> str:
+    return _FURIGANA_REGEXP.sub(r"\2", text.replace("&nbsp;", " "))
+
+
+def _kanji_filter(text: str) -> str:
+    return _FURIGANA_REGEXP.sub(r"\1", text.replace("&nbsp;", " "))
+
+
+def _html_onclick(content: str, onclick: str) -> str:
+    return html_tag(
+        "a", content, href="#", onclick=f"{onclick};event.preventDefault();"
+    )
+
+
+def html_click_action(
+    content: str,
+    click_action: Union[None, Config.ClickAction, str],
+    ids: Sequence[NoteId],
+    replacements: dict[str, str],
+) -> str:
+    if click_action is None:
+        return content
+    if click_action == Config.ClickAction.EDIT:
+        if ids:
+            return _html_onclick(content, f"hanziwebEditNote('{ids[0]}')")
+        return content
+    if click_action == Config.ClickAction.BROWSE:
+        if ids:
+            search_query = " OR ".join([f"nid:{x}" for x in ids])
+            return _html_onclick(content, f"hanziwebBrowse('{search_query}')")
+        return content
+    if isinstance(click_action, str):
+        s = click_action
+        for k, v in replacements.items():
+            s = s.replace("{" + k + "}", _urlencode(v))
+            s = s.replace("{kana:" + k + "}", _urlencode(_kana_filter(v)))
+            s = s.replace("{kanji:" + k + "}", _urlencode(_kanji_filter(v)))
+        return html_tag("a", content, href=s)
+    raise Exception("unreachable")
+
+
+def log(message: str) -> None:
     print(f"HanziWeb: {message}")
 
 
 class SupportsPendingChanges(Protocol):
-    report: str
-
     @property
     def is_empty(self) -> bool:
         pass
 
+    def confirm(self) -> bool:
+        pass
+
+    @property
+    def report(self) -> str:
+        pass
+
     def apply(self) -> Optional[str]:
         pass
+
+
+def inject_js_into_html(js: str, html: str) -> tuple[str, int]:
+    buffer = StringIO()
+    previous_version = -1
+
+    class Status(Enum):
+        none = 0
+        in_script = 1
+        in_hanziweb_script = 2
+        past_hanziweb_script = 3
+
+    status = Status.none
+
+    for line in html.splitlines(keepends=True):
+        if status == Status.past_hanziweb_script:
+            buffer.write(line)
+        elif status == Status.none:
+            if line.strip() == "<script>":
+                status = Status.in_script
+            buffer.write(line)
+        elif status == Status.in_script:
+            if m := re.fullmatch(JS_SIGIL_REGEXP, line):
+                status = Status.in_hanziweb_script
+                previous_version = int(m.group("version"))
+                buffer.write(JS_SIGIL)
+                buffer.write(js)
+                buffer.write("\n")
+            else:
+                status = Status.none
+                buffer.write(line)
+        elif status == Status.in_hanziweb_script:
+            if line.strip() == "</script>":
+                status = Status.past_hanziweb_script
+                buffer.write(line)
+        else:
+            raise Exception("unreachable")
+
+    if status != Status.past_hanziweb_script:
+        # Didn't find extant version, so append to end.
+        buffer.write("\n<script>\n")
+        buffer.write(JS_SIGIL)
+        buffer.write(js)
+        buffer.write("\n</script>")
+
+    return buffer.getvalue(), previous_version
