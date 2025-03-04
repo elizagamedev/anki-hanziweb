@@ -50,15 +50,11 @@ _FURIGANA_REGEXP = re.compile(r" ?([^ >]+?)\[(.+?)\]")
 
 
 class Config:
-    class ClickAction(Enum):
-        EDIT = 0
-        BROWSE = 1
-
     auto_run_on_sync: bool
-    click_hanzi_action: Union[None, ClickAction, str]
-    click_hanzi_term_action: Union[None, ClickAction, str]
-    click_phonetic_action: Union[None, ClickAction, str]
-    click_phonetic_term_action: Union[None, ClickAction, str]
+    click_hanzi_action: Any
+    click_hanzi_term_action: Any
+    click_phonetic_action: Any
+    click_phonetic_term_action: Any
     config_version: int
     days_to_update: int
     hanzi_fields_regexp: Optional[Pattern[Any]]
@@ -77,17 +73,20 @@ class Config:
                 f"(expecting <= {CONFIG_VERSION})"
             )
 
-        self.click_hanzi_action = self._string_to_click_action(
-            config.get("click_hanzi_action"), self.ClickAction.BROWSE
+        self.click_hanzi_action = (
+            self._validate_click_action(config.get("click_hanzi_action")) or ":browse"
         )
-        self.click_hanzi_term_action = self._string_to_click_action(
-            config.get("click_hanzi_term_action"), self.ClickAction.EDIT
+        self.click_hanzi_term_action = (
+            self._validate_click_action(config.get("click_hanzi_term_action"))
+            or ":edit"
         )
-        self.click_phonetic_action = self._string_to_click_action(
-            config.get("click_phonetic_action"), self.ClickAction.BROWSE
+        self.click_phonetic_action = (
+            self._validate_click_action(config.get("click_phonetic_action"))
+            or ":browse"
         )
-        self.click_phonetic_term_action = self._string_to_click_action(
-            config.get("click_phonetic_term_action"), self.ClickAction.EDIT
+        self.click_phonetic_term_action = (
+            self._validate_click_action(config.get("click_phonetic_term_action"))
+            or ":edit"
         )
 
         self.days_to_update = config.get("days_to_update") or 0
@@ -116,25 +115,33 @@ class Config:
         self.auto_run_on_sync = False if auto_run_on_sync is None else auto_run_on_sync
 
     @classmethod
-    def _string_to_click_action(
-        cls,
-        string: Optional[str],
-        default: Union[None, ClickAction, str],
-    ) -> Union[None, ClickAction, str]:
-        if not string:
-            return default
-        if string == ":none":
+    def _validate_click_action(cls, object: Any) -> Any:
+        def show_warning() -> None:
+            showWarning(f"Invalid click action: {object}")
+
+        if not object:
             return None
-        if string.startswith(":"):
-            result = {
-                ":edit": cls.ClickAction.EDIT,
-                ":browse": cls.ClickAction.BROWSE,
-            }.get(string)
-            if not result:
-                showWarning(f"Invalid click action: {string}")
-                return default
-            return result
-        return string
+        if isinstance(object, str):
+            if object.startswith(":"):
+                if object not in {":none", ":edit", ":browse"}:
+                    show_warning()
+                    return None
+            return object
+        if isinstance(object, list):
+            for pair in object:
+                if not isinstance(pair, list):
+                    show_warning()
+                    return None
+                if len(pair) != 2:
+                    show_warning()
+                    return None
+                for item in pair:
+                    if not isinstance(item, str):
+                        show_warning()
+                        return None
+            return object
+        show_warning()
+        return None
 
 
 def load_config() -> Config:
@@ -248,51 +255,11 @@ def html_tag(
     return f"<{tag}>{content}</{tag}>"
 
 
-def _urlencode(text: str) -> str:
-    no_tags = _TAG_REGEXP.sub("", text)
-    unescaped = html.unescape(no_tags)
-    return urllib.parse.quote(unescaped, safe="")
-
-
-def kana_filter(text: str) -> str:
-    return _FURIGANA_REGEXP.sub(r"\2", text.replace("&nbsp;", " "))
-
-
-def kanji_filter(text: str) -> str:
-    return _FURIGANA_REGEXP.sub(r"\1", text.replace("&nbsp;", " "))
-
-
-def _html_onclick(content: str, onclick: str) -> str:
-    return html_tag(
-        "a", content, href="#", onclick=f"{onclick};event.preventDefault();"
-    )
-
-
-def html_click_action(
-    content: str,
-    click_action: Union[None, Config.ClickAction, str],
-    ids: Sequence[NoteId],
-    replacements: dict[str, str],
-) -> str:
-    if click_action is None:
-        return content
-    if click_action == Config.ClickAction.EDIT:
-        if ids:
-            return _html_onclick(content, f"hanziwebEditNote('{ids[0]}')")
-        return content
-    if click_action == Config.ClickAction.BROWSE:
-        if ids:
-            search_query = " OR ".join([f"nid:{x}" for x in ids])
-            return _html_onclick(content, f"hanziwebBrowse('{search_query}')")
-        return content
-    if isinstance(click_action, str):
-        s = click_action
-        for k, v in replacements.items():
-            s = s.replace("{" + k + "}", _urlencode(v))
-            s = s.replace("{kana:" + k + "}", _urlencode(kana_filter(v)))
-            s = s.replace("{kanji:" + k + "}", _urlencode(kanji_filter(v)))
-        return html_tag("a", content, href=s)
-    raise Exception("unreachable")
+def strip_kana_and_html(text: str) -> str:
+    text = _TAG_REGEXP.sub("", text)
+    text = text.replace("&nbsp;", " ")
+    text = _FURIGANA_REGEXP.sub(r"\1", text)
+    return html.escape(text)
 
 
 def log(message: str) -> None:
@@ -315,9 +282,14 @@ class SupportsPendingChanges(Protocol):
         pass
 
 
-def inject_js_into_html(js: str, html: str) -> tuple[str, int]:
+def inject_js_into_html(config: Config, js: str, html: str) -> tuple[str, int]:
     buffer = StringIO()
     previous_version = -1
+
+    def dump_object(name: str, object: Any) -> None:
+        buffer.write(f"window.{name}=")
+        json.dump(object, buffer, ensure_ascii=False, separators=(",", ":"))
+        buffer.write(";\n")
 
     class Status(Enum):
         none = 0
@@ -340,8 +312,15 @@ def inject_js_into_html(js: str, html: str) -> tuple[str, int]:
                 previous_version = int(m.group("version"))
                 buffer.write(JS_SIGIL)
                 buffer.write("(function(){\n")
+                dump_object("hanziwebHanziActions", config.click_hanzi_action)
+                dump_object("hanziwebHanziTermActions", config.click_hanzi_term_action)
+                dump_object("hanziwebPhoneticActions", config.click_phonetic_action)
+                dump_object(
+                    "hanziwebPhoneticTermActions",
+                    config.click_phonetic_term_action,
+                )
                 buffer.write(js)
-                buffer.write("\n})();")
+                buffer.write("\n})();\n")
             else:
                 status = Status.none
                 buffer.write(line)

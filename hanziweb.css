@@ -9,6 +9,8 @@
   text-align: center;
   background: rgba(0, 0, 0, 0);
   transition: z-index 0s linear 0.15s, background 0.15s linear;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 #hanziweb-popup.hanziweb-popup-open {
@@ -56,18 +58,22 @@
   color: #E6E0E9;
 }
 
-#hanziweb-popup-actions a:any-link,
+#hanziweb-popup-actions a,
+#hanziweb-popup-actions a:link,
+#hanziweb-popup-actions a:visited,
 #hanziweb-popup-actions a:active,
 #hanziweb-popup-actions a:hover,
 #hanziweb-popup-actions a:focus {
   all: revert;
   text-decoration: unset;
+  -webkit-tap-highlight-color: transparent;
 
   font-size: 16pt;
   text-align: left;
   width: 100%;
   height: 56px;
-  padding: 8px 16px 8px 16px;
+  line-height: 56px;
+  padding: 0 16px 0 16px;
   margin: 0 0 -1px 0;
   border-style: solid;
   border-width: 1px 0 1px 0;
@@ -81,10 +87,13 @@
   overflow: hidden;
 }
 
-.nightMode #hanziweb-popup-actions a:any-link,
+.nightMode #hanziweb-popup-actions a,
+.nightMode #hanziweb-popup-actions a:link,
+.nightMode #hanziweb-popup-actions a:visited,
 .nightMode #hanziweb-popup-actions a:active,
 .nightMode #hanziweb-popup-actions a:hover,
 .nightMode #hanziweb-popup-actions a:focus {
+  -webkit-tap-highlight-color: transparent;
   color: #E6E0E9;
   border-color: #938F99;
 }

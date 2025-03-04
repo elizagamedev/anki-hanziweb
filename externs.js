@@ -1,6 +1,6 @@
 /** @constructor */
 function AnkiDroidJS(options) {}
-AnkiDroidJS.prototype = function ankiSearchCard(query) {};
+AnkiDroidJS.prototype.ankiSearchCard = function(query) {};
 
 function pycmd(string) {}
 
@@ -11,8 +11,8 @@ window.hanziwebPhoneticTermActions = [];
 
 window.hanziwebAnkiDroid = {};
 
-window.hanziwebOnClickHanzi = function(event, nids, hanzi) {};
-window.hanziwebOnClickHanziTerm = function(event, nid, hanzi, term) {};
-window.hanziwebOnClickPhonetic = function(event, nids, hanzi, phonetic) {};
-window.hanziwebOnClickPhoneticTerm = function(event, nid, hanzi, phonetic,
-                                              term) {};
+window.hanziwebOnClickHanzi = function(event, ...nids) {};
+window.hanziwebOnClickHanziTerm = function(event, hanzi, ...nids) {};
+window.hanziwebOnClickPhonetic = function(event, hanzi, ...nids) {};
+window.hanziwebOnClickPhoneticTerm = function(event, hanzi, phonetic,
+                                              ...nids) {};

@@ -1,4 +1,6 @@
 import sys
+import json
+import html
 
 from dataclasses import dataclass
 from re import Pattern
@@ -21,7 +23,6 @@ from .common import (
     HANZI_REGEXP,
     JS_VERSION,
     assert_is_not_none,
-    html_click_action,
     html_tag,
     inject_js_into_html,
     log,
@@ -31,26 +32,40 @@ from .common import (
 from .kyujipy import BasicConverter
 
 
-def inject_into_templates(model_dict: dict[str, Any], js: str) -> tuple[int, int]:
-    min_previous_js_version: Optional[int] = None
+def html_click_action(content: str, function: str, *args: str) -> str:
+    json_args = ",".join(
+        [
+            html.escape(
+                json.dumps(
+                    html.escape(x, quote=True),
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ),
+                quote=False,
+            )
+            for x in args
+        ]
+    ).replace('"', "'")
+    return html_tag("a", content, href="#", onclick=f"{function}(event,{json_args})")
+
+
+def inject_into_templates(
+    model_dict: dict[str, Any], config: Config, js: str
+) -> tuple[bool, int]:
     max_previous_js_version = -1
     is_dirty = False
     for template in model_dict["tmpls"]:
         for side in ("qfmt", "afmt"):
-            html, this_previous_js_version = inject_js_into_html(js, template[side])
-            min_previous_js_version = (
-                this_previous_js_version
-                if min_previous_js_version is None
-                else min(min_previous_js_version, this_previous_js_version)
+            html, this_previous_js_version = inject_js_into_html(
+                config, js, template[side]
             )
             max_previous_js_version = max(
                 max_previous_js_version, this_previous_js_version
             )
-            if this_previous_js_version != JS_VERSION:
+            if template[side] != html:
+                is_dirty = True
                 template[side] = html
-    if min_previous_js_version is None:
-        min_previous_js_version = max_previous_js_version
-    return min_previous_js_version, max_previous_js_version
+    return is_dirty, max_previous_js_version
 
 
 @dataclass(eq=False, frozen=True)
@@ -60,28 +75,38 @@ class HanziModel:
     fields: Sequence[str]
     has_web_field: bool
     model_dict: dict[str, Any]
-    previous_js_version: tuple[int, int]
+    max_previous_js_version: int
+    is_dirty: bool
 
     def apply(self) -> None:
         mw.col.models.update_dict(self.model_dict)
 
 
 def create_hanzi_model(
-    hanzi_fields_regexp: Pattern[Any],
-    web_field: str,
+    config: Config,
     note_type: NotetypeNameId,
     js: str,
 ) -> Optional[HanziModel]:
     id = NotetypeId(note_type.id)
     model_dict = assert_is_not_none(mw.col.models.get(id))
     all_fields = mw.col.models.field_names(model_dict)
-    fields = [name for name in all_fields if hanzi_fields_regexp.fullmatch(name)]
+    fields = (
+        [name for name in all_fields if config.hanzi_fields_regexp.fullmatch(name)]
+        if config.hanzi_fields_regexp
+        else []
+    )
     if not fields:
         return None
-    has_web_field = web_field in all_fields
-    previous_js_version = inject_into_templates(model_dict, js)
+    has_web_field = config.web_field in all_fields
+    is_dirty, max_previous_js_version = inject_into_templates(model_dict, config, js)
     return HanziModel(
-        id, note_type.name, fields, has_web_field, model_dict, previous_js_version
+        id,
+        note_type.name,
+        fields,
+        has_web_field,
+        model_dict,
+        max_previous_js_version,
+        is_dirty,
     )
 
 
@@ -167,9 +192,9 @@ class HanziWeb:
         self,
         term_separator: str,
         max_terms_per_hanzi: int,
-        click_term_action: Union[None, Config.ClickAction, str],
         hanzi: str,
         select: Callable[[HanziNote], bool],
+        filter: Callable[[str, NoteId], str],
     ) -> Tuple[str, list[NoteId]]:
         note_list = self.web.get(hanzi)
         if not note_list:
@@ -189,14 +214,7 @@ class HanziWeb:
                 for term in other_hanzi_note.terms:
                     if reached_term_limit():
                         break
-                    terms.append(
-                        html_click_action(
-                            term,
-                            click_term_action,
-                            [other_hanzi_note.id],
-                            {"hanzi": hanzi, "term": term},
-                        )
-                    )
+                    terms.append(filter(term, other_hanzi_note.id))
             ids.append(other_hanzi_note.id)
         ids.sort()
         return term_separator.join(terms), ids
@@ -236,8 +254,7 @@ def get_hanzi_models(config: Config, js: str) -> dict[NotetypeId, HanziModel]:
         model.id: model
         for model in [
             create_hanzi_model(
-                config.hanzi_fields_regexp,
-                config.web_field,
+                config,
                 note_type,
                 js,
             )
@@ -261,11 +278,17 @@ def get_notes_to_update(
         terms_text, ids = phonetic_series_web.entry(
             config.term_separator,
             config.max_terms_per_hanzi,
-            config.click_phonetic_term_action,
             component,
             # Exclude any other entries that contain the exact same hanzi as this
             # one; it just creates noise in the output.
             lambda x: x != hanzi_note and hanzi not in x.hanzi,
+            lambda term, nid: html_click_action(
+                term,
+                "hanziwebOnClickPhoneticTerm",
+                hanzi,
+                component,
+                str(nid),
+            ),
         )
         component_text = "音符 " + html_tag(
             "span", component, clazz="hanziweb-phonetic-component"
@@ -273,9 +296,9 @@ def get_notes_to_update(
         return (
             html_click_action(
                 component_text,
-                config.click_phonetic_action,
-                ids,
-                {"hanzi": hanzi, "phonetic": component},
+                "hanziwebOnClickPhonetic",
+                hanzi,
+                *[str(id) for id in ids],
             ),
             terms_text,
         )
@@ -294,9 +317,14 @@ def get_notes_to_update(
             same_terms_text, same_terms_ids = hanzi_web.entry(
                 config.term_separator,
                 config.max_terms_per_hanzi,
-                config.click_hanzi_term_action,
                 hanzi,
                 lambda x: x != hanzi_note,
+                lambda term, nid: html_click_action(
+                    term,
+                    "hanziwebOnClickHanziTerm",
+                    hanzi,
+                    str(nid),
+                ),
             )
 
             all_terms = (
@@ -317,7 +345,9 @@ def get_notes_to_update(
             hanzi_td = html_tag(
                 "td",
                 html_click_action(
-                    hanzi, config.click_hanzi_action, same_terms_ids, {"hanzi": hanzi}
+                    hanzi,
+                    "hanziwebOnClickHanzi",
+                    *[str(id) for id in same_terms_ids],
                 ),
                 clazz="hanziweb-hanzi",
                 rowspan=str(max(len(all_terms), 1)),
@@ -391,11 +421,7 @@ class PendingChanges:
 
         converter = BasicConverter()  # type: ignore
 
-        self.models_to_update = [
-            x
-            for x in hanzi_models.values()
-            if x.previous_js_version != (JS_VERSION, JS_VERSION)
-        ]
+        self.models_to_update = [x for x in hanzi_models.values() if x.is_dirty]
 
         log("Creating HanziNotes")
         notes = {
@@ -435,9 +461,7 @@ class PendingChanges:
 
     def confirm(self) -> bool:
         downgraded_models = [
-            x
-            for x in self.models_to_update
-            if any([x > JS_VERSION for x in x.previous_js_version])
+            x for x in self.models_to_update if x.max_previous_js_version > JS_VERSION
         ]
         if downgraded_models:
             return askUser(

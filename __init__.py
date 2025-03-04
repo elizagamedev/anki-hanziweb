@@ -134,7 +134,7 @@ def update(config: Config, is_interactive: bool) -> None:
     #
     # https://addon-docs.ankiweb.net/background-ops.html?highlight=undo#collection-operations
     if any(not x.is_empty for x in pending_changes):
-        mw.checkpoint("Hanzi Web")
+        # mw.checkpoint("Hanzi Web")
         tooltip_text = [x.apply() for x in pending_changes]
         mw.reset()
         tooltip(" ".join(x for x in tooltip_text if x), parent=mw)
