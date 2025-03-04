@@ -7,4 +7,7 @@ __pycache__
 /kanjidic-onyomi.json
 /kanji-onyomi.json
 /phonetics.json
+/hanziweb.min.css
+/hanziweb.min.html
+/hanziweb.init.js
 /hanziweb.min.js

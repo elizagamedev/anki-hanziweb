@@ -31,7 +31,7 @@ mw: AnkiQt = assert_is_not_none(mw_optional)
 
 VERSION = "1.2.0"
 CONFIG_VERSION = 1
-JS_VERSION = 0
+JS_VERSION = 1
 
 # Matches each hanzi character individually.
 HANZI_REGEXP = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
@@ -181,7 +181,7 @@ def get_lazy_data() -> LazyData:
         with open(
             addon_directory / "hanziweb.min.js", "r", encoding="utf-8"
         ) as js_file:
-            js = js_file.read()
+            js = js_file.read().strip()
 
         _lazy_data = LazyData(onyomi, phonetics, js)
     return _lazy_data
@@ -254,11 +254,11 @@ def _urlencode(text: str) -> str:
     return urllib.parse.quote(unescaped, safe="")
 
 
-def _kana_filter(text: str) -> str:
+def kana_filter(text: str) -> str:
     return _FURIGANA_REGEXP.sub(r"\2", text.replace("&nbsp;", " "))
 
 
-def _kanji_filter(text: str) -> str:
+def kanji_filter(text: str) -> str:
     return _FURIGANA_REGEXP.sub(r"\1", text.replace("&nbsp;", " "))
 
 
@@ -289,8 +289,8 @@ def html_click_action(
         s = click_action
         for k, v in replacements.items():
             s = s.replace("{" + k + "}", _urlencode(v))
-            s = s.replace("{kana:" + k + "}", _urlencode(_kana_filter(v)))
-            s = s.replace("{kanji:" + k + "}", _urlencode(_kanji_filter(v)))
+            s = s.replace("{kana:" + k + "}", _urlencode(kana_filter(v)))
+            s = s.replace("{kanji:" + k + "}", _urlencode(kanji_filter(v)))
         return html_tag("a", content, href=s)
     raise Exception("unreachable")
 
@@ -339,8 +339,9 @@ def inject_js_into_html(js: str, html: str) -> tuple[str, int]:
                 status = Status.in_hanziweb_script
                 previous_version = int(m.group("version"))
                 buffer.write(JS_SIGIL)
+                buffer.write("(function(){\n")
                 buffer.write(js)
-                buffer.write("\n")
+                buffer.write("\n})();")
             else:
                 status = Status.none
                 buffer.write(line)

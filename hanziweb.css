@@ -1,0 +1,106 @@
+#hanziweb-popup {
+  all: revert;
+  inset: 0 0 0 0;
+  position: fixed;
+  z-index: -1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background: rgba(0, 0, 0, 0);
+  transition: z-index 0s linear 0.15s, background 0.15s linear;
+}
+
+#hanziweb-popup.hanziweb-popup-open {
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.5);
+  transition: z-index 0s, background 0.15s linear;
+}
+
+.hanziweb-popup-content {
+  all: revert;
+  border-radius: 28px;
+  padding: 24px 24px 28px 24px;
+  min-width: 280px;
+  max-width: 560px;
+  background: #ECE6F0;
+
+  top: 50%;
+  bottom: 50%;
+  box-sizing: border-box;
+  margin: 10px 10px;
+  transform: scale(0.9);
+  opacity: 0;
+  transition: all 0.15s;
+}
+
+.nightMode .hanziweb-popup-content {
+  background: #2B2930;
+}
+
+.hanziweb-popup-open .hanziweb-popup-content {
+  opacity: 1;
+  transform: scale(1);
+  transition: all 0.15s;
+}
+
+#hanziweb-popup-title {
+  all: revert;
+  font-size: 24pt;
+  text-align: center;
+  margin: 0 0 16px 0;
+  color: #1D1B20;
+}
+
+.nightMode #hanziweb-popup-title {
+  color: #E6E0E9;
+}
+
+#hanziweb-popup-actions a:any-link,
+#hanziweb-popup-actions a:active,
+#hanziweb-popup-actions a:hover,
+#hanziweb-popup-actions a:focus {
+  all: revert;
+  text-decoration: unset;
+
+  font-size: 16pt;
+  text-align: left;
+  width: 100%;
+  height: 56px;
+  padding: 8px 16px 8px 16px;
+  margin: 0 0 -1px 0;
+  border-style: solid;
+  border-width: 1px 0 1px 0;
+  color: #1D1B20;
+  border-color: #79747E;
+
+  display: block;
+  box-sizing: border-box;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.nightMode #hanziweb-popup-actions a:any-link,
+.nightMode #hanziweb-popup-actions a:active,
+.nightMode #hanziweb-popup-actions a:hover,
+.nightMode #hanziweb-popup-actions a:focus {
+  color: #E6E0E9;
+  border-color: #938F99;
+}
+
+#hanziweb-popup-actions a:hover {
+  background: rgba(29, 27, 32, 0.06);
+}
+
+.nightMode #hanziweb-popup-actions a:hover {
+  background: rgba(230, 224, 233, 0.06);
+}
+
+#hanziweb-popup-actions a:active {
+  background: rgba(29, 27, 32, 0.1);
+}
+
+.nightMode #hanziweb-popup-actions a:active {
+  background: rgba(230, 224, 233, 0.1);
+}

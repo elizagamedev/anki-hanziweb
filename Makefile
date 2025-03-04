@@ -26,7 +26,11 @@ clean:	; rm -rf *.ankiaddon \
 		kanji-onyomi.json \
 		kanjidic-onyomi.json \
 		phonetics.json \
+		hanziweb.min.css \
+		hanziweb.min.html \
+		hanziweb.init.js \
 		hanziweb.min.js
+
 .PHONY: all clean format
 .DELETE_ON_ERROR:
 
@@ -43,8 +47,19 @@ kanji-onyomi.json: tools/make-kanji-onyomi.py $(KANJI_BANK) kanjidic-onyomi.json
 phonetics.json: tools/make-phonetics.py
 	python3 tools/make-phonetics.py > $@
 
-hanziweb.min.js: hanziweb.js
-	closure-compiler --js $< --js_output_file $@
+hanziweb.min.css: hanziweb.css
+	cleancss -o $@ $<
+
+hanziweb.min.html: hanziweb.html html-minifier.json
+	html-minifier -c html-minifier.json -o $@ $<
+
+hanziweb.init.js: tools/make-init-js.py hanziweb.min.css hanziweb.min.html
+	python3 $^ $@
+
+hanziweb.min.js: externs.js hanziweb.js hanziweb.init.js
+	closure-compiler -O ADVANCED \
+		--externs externs.js --js hanziweb.js --js hanziweb.init.js \
+		--js_output_file $@
 
 $(ANKIADDON): $(DEPS)
 	rm -f $@

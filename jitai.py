@@ -5,7 +5,7 @@ from typing import Any, Optional, Sequence
 from anki.models import NotetypeId, NotetypeNameId
 from anki.notes import NoteId
 
-from .common import Config, assert_is_not_none, mw
+from .common import Config, assert_is_not_none, mw, kanji_filter
 from .kyujipy import KyujitaiConverter
 
 CONFIG_NORMALIZE_NOTE_TEXT = "normalize_note_text"
@@ -78,7 +78,7 @@ class PendingChanges:
         converter = KyujitaiConverter()  # type: ignore
 
         def convert(x: str) -> str:
-            return str(converter.shinjitai_to_kyujitai(x))  # type: ignore
+            return str(converter.shinjitai_to_kyujitai(kanji_filter(x)))  # type: ignore
 
         self.models = (
             {
