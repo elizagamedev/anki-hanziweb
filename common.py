@@ -29,7 +29,7 @@ def assert_is_not_none(optional: Optional[Any]) -> Any:
 
 mw: AnkiQt = assert_is_not_none(mw_optional)
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 CONFIG_VERSION = 1
 JS_VERSION = 1
 

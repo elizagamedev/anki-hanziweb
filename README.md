@@ -7,6 +7,26 @@ note. The intent is that you'll be able to more easily learn the readings of
 hanzi if you are reminded of other words it comprises that you've already
 studied.
 
+As of version 1.2.0, Hanzi Web can be configured such that clicking on hanzi or
+terms can open dictionary apps, webpages, the Anki browser or note editor, etc.
+As of version 1.3.0, multiple actions can be specified in a context menu. GIFs
+can explain better than words can:
+
+Showing all notes which contain the same hanzi...
+
+![](context-menu-1.gif)
+
+Viewing a term in Yomichan via
+[Textbender](https://github.com/elizagamedev/android-textbender)...
+
+![](context-menu-2.gif)
+
+Viewing a phonetic component (音符) in [Pleco](https://www.pleco.com/)...
+
+![](context-menu-3.gif)
+
+Please read the full readme and [config.md](config.md) for more details.
+
 ## Installation
 You may install this from its [Anki Web
 page](https://ankiweb.net/shared/info/125468335). You may alternatively download

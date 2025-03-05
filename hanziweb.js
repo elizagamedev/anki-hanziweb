@@ -15,7 +15,7 @@ function ankiEditNote(nid) {
   } else if (typeof pycmd !== "undefined") {
     pycmd("hanziwebEditNote " + nid);
   }
-};
+}
 
 function ankiBrowse(query) {
   if (window.hanziwebAnkiDroid != null) {
@@ -23,7 +23,7 @@ function ankiBrowse(query) {
   } else if (typeof pycmd !== "undefined") {
     pycmd("hanziwebBrowse " + query);
   }
-};
+}
 
 function browseNotesQuery(nids) {
   return nids.map(nid => "nid:" + nid).join(" OR ");
@@ -132,7 +132,7 @@ function makeTermKeywords(element) {
         if (appendToKana) {
           kana += text;
         }
-      } else {
+      } else if (child.tagName !== "RP") {
         traverse(child, appendToKanji && child.tagName !== "RT",
                  appendToKana && child.tagName !== "RB");
       }
@@ -150,7 +150,7 @@ function sanitizeTermElement(element) {
         out.appendChild(new Text(child.wholeText));
       } else {
         if (child.tagName === "RUBY" || child.tagName === "RT" ||
-            child.tagName === "RB") {
+            child.tagName === "RB" || child.tagName === "RP") {
           const outChild = document.createElement(child.tagName);
           traverse(child, outChild)
           out.appendChild(outChild);
@@ -160,7 +160,7 @@ function sanitizeTermElement(element) {
       }
     }
   }
-  const out = document.createElement("div");
+  const out = document.createElement("span");
   traverse(element, out);
   return out;
 }
@@ -173,9 +173,8 @@ window.hanziwebOnClickHanzi = function(event, ...nids) {
 };
 
 window.hanziwebOnClickHanziTerm = function(event, hanzi, ...nids) {
-  const termElement = getEventLink(event);
-  handleActions(sanitizeTermElement(termElement),
-                window.hanziwebHanziTermActions, nids,
+  const termElement = sanitizeTermElement(getEventLink(event));
+  handleActions(termElement, window.hanziwebHanziTermActions, nids,
                 {"hanzi" : hanzi, ...makeTermKeywords(termElement)});
   event.preventDefault();
 };
@@ -190,13 +189,12 @@ window.hanziwebOnClickPhonetic = function(event, hanzi, ...nids) {
 };
 
 window.hanziwebOnClickPhoneticTerm = function(event, hanzi, phonetic, ...nids) {
-  const termElement = getEventLink(event);
-  handleActions(sanitizeTermElement(termElement),
-                window.hanziwebPhoneticTermActions, nids, {
-                  "hanzi" : hanzi,
-                  "phonetic" : phonetic,
-                  ...makeTermKeywords(termElement)
-                });
+  const termElement = sanitizeTermElement(getEventLink(event));
+  handleActions(termElement, window.hanziwebPhoneticTermActions, nids, {
+    "hanzi" : hanzi,
+    "phonetic" : phonetic,
+    ...makeTermKeywords(termElement)
+  });
   event.preventDefault();
 };
 
