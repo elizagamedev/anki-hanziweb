@@ -29,7 +29,7 @@ def assert_is_not_none(optional: Optional[Any]) -> Any:
 
 mw: AnkiQt = assert_is_not_none(mw_optional)
 
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 CONFIG_VERSION = 1
 JS_VERSION = 1
 
@@ -37,10 +37,13 @@ JS_VERSION = 1
 HANZI_REGEXP = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 
 # Matches JS sigil in template.
-JS_SIGIL = f"/* DO NOT EDIT! -- Hanzi Web JS v{JS_VERSION} */\n"
-JS_SIGIL_REGEXP = re.compile(
+_JS_SIGIL = f"/* DO NOT EDIT! -- Hanzi Web JS v{JS_VERSION} */\n"
+_JS_SIGIL_REGEXP = re.compile(
     r"/\s*\*\s*DO NOT EDIT! -- Hanzi Web JS v(?P<version>\d+)\s*\*/\n?"
 )
+
+# Matches a trailing newline plus whitespace.
+_TRAILING_NEWLINE_REGEXP = re.compile(r".*\n\s*$", flags=re.DOTALL)
 
 # https://stackoverflow.com/a/19730306
 _TAG_REGEXP = re.compile(r"(<!--.*?-->|<[^>]*>)")
@@ -64,6 +67,8 @@ class Config:
     search_query: str
     term_separator: str
     web_field: str
+
+    js_required: bool
 
     def __init__(self, config: dict[str, Any]):
         self.config_version = config.get("config_version") or 0
@@ -113,6 +118,14 @@ class Config:
 
         auto_run_on_sync = config.get("auto_run_on_sync")
         self.auto_run_on_sync = False if auto_run_on_sync is None else auto_run_on_sync
+
+        # Derived properties.
+        self.js_required = (
+            self.click_hanzi_action != ":none"
+            or self.click_hanzi_term_action != ":none"
+            or self.click_phonetic_action != ":none"
+            or self.click_phonetic_term_action != ":none"
+        )
 
     @classmethod
     def _validate_click_action(cls, object: Any) -> Any:
@@ -291,51 +304,63 @@ def inject_js_into_html(config: Config, js: str, html: str) -> tuple[str, int]:
         json.dump(object, buffer, ensure_ascii=False, separators=(",", ":"))
         buffer.write(";\n")
 
-    class Status(Enum):
-        none = 0
-        in_script = 1
-        in_hanziweb_script = 2
-        past_hanziweb_script = 3
+    def inject() -> None:
+        buffer.write(_JS_SIGIL)
+        buffer.write("(function(){\n")
+        dump_object("hanziwebHanziActions", config.click_hanzi_action)
+        dump_object("hanziwebHanziTermActions", config.click_hanzi_term_action)
+        dump_object("hanziwebPhoneticActions", config.click_phonetic_action)
+        dump_object(
+            "hanziwebPhoneticTermActions",
+            config.click_phonetic_term_action,
+        )
+        buffer.write(js)
+        buffer.write("\n})();\n")
 
-    status = Status.none
+    class Status(Enum):
+        NONE = 0
+        IN_SCRIPT = 1
+        IN_HANZIWEB_SCRIPT = 2
+        PAST_HANZIWEB_SCRIPT = 3
+
+    status = Status.NONE
+    script_line = "<script>\n"
+    final_line_is_empty = False
 
     for line in html.splitlines(keepends=True):
-        if status == Status.past_hanziweb_script:
+        if status == Status.PAST_HANZIWEB_SCRIPT:
             buffer.write(line)
-        elif status == Status.none:
+        elif status == Status.NONE:
             if line.strip() == "<script>":
-                status = Status.in_script
-            buffer.write(line)
-        elif status == Status.in_script:
-            if m := re.fullmatch(JS_SIGIL_REGEXP, line):
-                status = Status.in_hanziweb_script
-                previous_version = int(m.group("version"))
-                buffer.write(JS_SIGIL)
-                buffer.write("(function(){\n")
-                dump_object("hanziwebHanziActions", config.click_hanzi_action)
-                dump_object("hanziwebHanziTermActions", config.click_hanzi_term_action)
-                dump_object("hanziwebPhoneticActions", config.click_phonetic_action)
-                dump_object(
-                    "hanziwebPhoneticTermActions",
-                    config.click_phonetic_term_action,
-                )
-                buffer.write(js)
-                buffer.write("\n})();\n")
+                status = Status.IN_SCRIPT
+                script_line = line
             else:
-                status = Status.none
                 buffer.write(line)
-        elif status == Status.in_hanziweb_script:
+        elif status == Status.IN_SCRIPT:
+            if m := re.fullmatch(_JS_SIGIL_REGEXP, line):
+                status = Status.IN_HANZIWEB_SCRIPT
+                previous_version = int(m.group("version"))
+                if config.js_required:
+                    buffer.write(script_line)
+                    inject()
+            else:
+                status = Status.NONE
+                buffer.write(script_line)
+                buffer.write(line)
+        elif status == Status.IN_HANZIWEB_SCRIPT:
             if line.strip() == "</script>":
-                status = Status.past_hanziweb_script
-                buffer.write(line)
+                status = Status.PAST_HANZIWEB_SCRIPT
+                if config.js_required:
+                    buffer.write(line)
         else:
             raise Exception("unreachable")
 
-    if status != Status.past_hanziweb_script:
+    if status != Status.PAST_HANZIWEB_SCRIPT and config.js_required:
         # Didn't find extant version, so append to end.
-        buffer.write("\n<script>\n")
-        buffer.write(JS_SIGIL)
-        buffer.write(js)
-        buffer.write("\n</script>")
+        if not _TRAILING_NEWLINE_REGEXP.fullmatch(html):
+            buffer.write("\n")
+        buffer.write("<script>\n")
+        inject()
+        buffer.write("</script>")
 
     return buffer.getvalue(), previous_version

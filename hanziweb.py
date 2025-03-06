@@ -32,7 +32,12 @@ from .common import (
 from .kyujipy import BasicConverter
 
 
-def html_click_action(content: str, function: str, *args: str) -> str:
+def html_click_action(
+    content: str, click_action: Any, function: str, args: list[str]
+) -> str:
+    if click_action == ":none":
+        # Wrap in a span so that Anki doesn't place furigana over commas.
+        return html_tag("span", content)
     json_args = ",".join(
         [
             html.escape(
@@ -284,10 +289,9 @@ def get_notes_to_update(
             lambda x: x != hanzi_note and hanzi not in x.hanzi,
             lambda term, nid: html_click_action(
                 term,
+                config.click_phonetic_term_action,
                 "hanziwebOnClickPhoneticTerm",
-                hanzi,
-                component,
-                str(nid),
+                [hanzi, component, str(nid)],
             ),
         )
         component_text = "音符 " + html_tag(
@@ -296,9 +300,9 @@ def get_notes_to_update(
         return (
             html_click_action(
                 component_text,
+                config.click_phonetic_action,
                 "hanziwebOnClickPhonetic",
-                hanzi,
-                *[str(id) for id in ids],
+                [hanzi, *[str(id) for id in ids]],
             ),
             terms_text,
         )
@@ -321,9 +325,9 @@ def get_notes_to_update(
                 lambda x: x != hanzi_note,
                 lambda term, nid: html_click_action(
                     term,
+                    config.click_hanzi_term_action,
                     "hanziwebOnClickHanziTerm",
-                    hanzi,
-                    str(nid),
+                    [hanzi, str(nid)],
                 ),
             )
 
@@ -346,8 +350,9 @@ def get_notes_to_update(
                 "td",
                 html_click_action(
                     hanzi,
+                    config.click_hanzi_action,
                     "hanziwebOnClickHanzi",
-                    *[str(id) for id in same_terms_ids],
+                    [str(id) for id in same_terms_ids],
                 ),
                 clazz="hanziweb-hanzi",
                 rowspan=str(max(len(all_terms), 1)),
